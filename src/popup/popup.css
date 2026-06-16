@@ -1,0 +1,57 @@
+:root {
+  color-scheme: light dark;
+  font: 13px/1.4 system-ui, -apple-system, sans-serif;
+}
+
+body {
+  width: 280px;
+  margin: 0;
+  padding: 14px;
+}
+
+header {
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.host {
+  margin: 2px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.row > span {
+  flex: 0 0 auto;
+}
+
+.row select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+}
+
+.toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.status {
+  min-height: 16px;
+  margin: 10px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
