@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Luxe Translate</title>
+</head>
+<body>
+  <header class="hdr">
+    <div class="logo">L</div>
+    <div>
+      <h1>Luxe Translate</h1>
+      <p class="host" id="host">—</p>
+    </div>
+  </header>
+
+  <section class="row toggle-row">
+    <label for="enable">Translate this site</label>
+    <label class="switch">
+      <input type="checkbox" id="enable" />
+      <span class="slider"></span>
+    </label>
+  </section>
+
+  <section class="row">
+    <label for="lang">Translate into</label>
+    <select id="lang"></select>
+  </section>
+
+  <section class="row">
+    <label for="ccy">Convert prices to</label>
+    <select id="ccy"></select>
+  </section>
+
+  <section class="row sub">
+    <label for="gloss">Luxury glossary</label>
+    <label class="switch sm">
+      <input type="checkbox" id="gloss" />
+      <span class="slider"></span>
+    </label>
+  </section>
+
+  <section class="row sub">
+    <label for="orig">Show original text</label>
+    <label class="switch sm">
+      <input type="checkbox" id="orig" />
+      <span class="slider"></span>
+    </label>
+  </section>
+
+  <p class="status" id="status">Ready.</p>
+
+  <script src="popup.js"></script>
+</body>
+</html>

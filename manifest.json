@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Luxe Translate — Full-Page Translator & Currency Converter",
+  "version": "0.1.0",
+  "description": "Fully translates foreign luxury/resale sites (incl. scroll-loaded content) and converts prices to your currency, inline.",
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/data/glossary.js",
+        "src/content/dom-walker.js",
+        "src/content/translator.js",
+        "src/content/currency.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Luxe Translate"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
