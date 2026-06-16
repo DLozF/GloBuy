@@ -44,8 +44,12 @@
 
   function notify(state, extra) {
     try {
-      chrome.runtime.sendMessage({ type: 'status', state, extra, host: HOST });
-    } catch (e) { /* popup may be closed */ }
+      // Read lastError in the callback so a closed popup doesn't log
+      // "Could not establish connection" noise to the console.
+      chrome.runtime.sendMessage({ type: 'status', state, extra, host: HOST }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (e) { /* extension context may be gone */ }
   }
 
   async function ensureTranslator() {
@@ -73,7 +77,17 @@
         if (seenText.has(node) || node._ltSkip) continue;
         const original = node.nodeValue;
         seenText.add(node);
-        const translated = await LuxeTranslator.translateText(translator, original, gloss);
+        // Protect any prices in this node so the translator leaves them intact
+        // (e.g. doesn't turn ₩/원 into the word "won") — otherwise the currency
+        // module can't detect and convert them afterwards.
+        let priceLiterals = null;
+        if (globalThis.LuxeCurrency && /\d/.test(original)) {
+          priceLiterals = LuxeCurrency
+            .findPrices(original, srcLang)
+            .map((p) => original.slice(p.start, p.end));
+          if (!priceLiterals.length) priceLiterals = null;
+        }
+        const translated = await LuxeTranslator.translateText(translator, original, gloss, priceLiterals);
         // Only apply if the node text hasn't changed underneath us.
         if (translated && translated !== original && node.nodeValue === original) {
           originals.set(node, original);

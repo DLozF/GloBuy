@@ -55,19 +55,21 @@
     }
   }
 
-  // Replace glossary source terms with sentinels before translation.
-  function protect(text, gloss) {
-    if (!gloss) return { text, map: null };
+  // Replace protected substrings with sentinels before translation.
+  // `entries` is [{ match, value }]: glossary terms map to their preferred
+  // English; prices map to themselves (so they survive translation intact).
+  function protect(text, entries) {
+    if (!entries || !entries.length) return { text, map: null };
     let out = text;
     const map = [];
-    // Longer terms first so e.g. "정품인증" wins over "정품".
-    const terms = Object.keys(gloss).sort((a, b) => b.length - a.length);
-    for (const term of terms) {
-      if (map.length >= 200) break;
-      if (out.indexOf(term) === -1) continue;
+    // Longest match first so e.g. "정품인증" wins over "정품".
+    const sorted = entries.slice().sort((a, b) => b.match.length - a.match.length);
+    for (const { match, value } of sorted) {
+      if (map.length >= 400) break;
+      if (!match || out.indexOf(match) === -1) continue;
       const token = String.fromCodePoint(PUA_START + map.length);
-      out = out.split(term).join(token);
-      map.push({ token, value: gloss[term] });
+      out = out.split(match).join(token);
+      map.push({ token, value });
     }
     return { text: out, map: map.length ? map : null };
   }
@@ -79,8 +81,14 @@
     return out;
   }
 
-  async function translateText(translator, text, gloss) {
-    const { text: prepared, map } = protect(text, gloss);
+  // `gloss` is the per-language glossary object (term -> English) or null.
+  // `protectLiterals` is an array of substrings (e.g. detected prices) to keep
+  // verbatim through translation.
+  async function translateText(translator, text, gloss, protectLiterals) {
+    const entries = [];
+    if (gloss) for (const k of Object.keys(gloss)) entries.push({ match: k, value: gloss[k] });
+    if (protectLiterals) for (const lit of protectLiterals) entries.push({ match: lit, value: lit });
+    const { text: prepared, map } = protect(text, entries);
     try {
       const translated = await translator.translate(prepared);
       return restore(translated, map);
