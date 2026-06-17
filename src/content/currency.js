@@ -26,6 +26,30 @@
     return SYMBOL_CCY[sym] || null;
   }
 
+  // Infer the page's source currency so bare, unmarked numbers (e.g. a listing
+  // that just shows "2,500,000") can still be converted. Returns null when we
+  // can't tell — which keeps bare-number conversion OFF for non-CJK sites.
+  const LANG_CCY = { ko: 'KRW', ja: 'JPY', zh: 'CNY' };
+  const TLD_CCY = { kr: 'KRW', jp: 'JPY', cn: 'CNY', hk: 'HKD', tw: 'TWD' };
+  const LOCALE_CCY = { KR: 'KRW', JP: 'JPY', CN: 'CNY', HK: 'HKD', TW: 'TWD' };
+  let _inferred, _inferredFor;
+  function inferSourceCurrency(hint) {
+    if (_inferredFor === hint) return _inferred;
+    let ccy = LANG_CCY[hint] || null;
+    if (!ccy) {
+      const tld = (location.hostname || '').split('.').pop().toLowerCase();
+      ccy = TLD_CCY[tld] || null;
+    }
+    if (!ccy) {
+      const meta = document.querySelector('meta[property="og:locale"]');
+      const region = ((meta && meta.getAttribute('content')) || '').split(/[_-]/)[1];
+      if (region) ccy = LOCALE_CCY[region.toUpperCase()] || null;
+    }
+    _inferredFor = hint;
+    _inferred = ccy;
+    return ccy;
+  }
+
   function parseAmount(raw) {
     const cleaned = raw.replace(/[\s ,]/g, '');
     const v = parseFloat(cleaned);
@@ -34,8 +58,16 @@
 
   const NUM = '(\\d[\\d.,\\s\\u00a0]*\\d|\\d)';
 
+  // Units that follow a number but mean it's NOT a price (counts, dates, sizes),
+  // so bare-number inference doesn't convert e.g. "1,234명" view counts. CJK
+  // units need no word boundary (they aren't ASCII \w); ASCII units must not run
+  // into another letter (so "1,000 grams" isn't mistaken for a "g" unit).
+  const NON_PRICE_UNIT = /^\s*(?:[명회개점건년월일위등]|(?:mm|cm|km|kg|ml|g)(?![a-z]))/i;
+
   // Returns non-overlapping prices: [{start, end, amount, currency}]
-  function findPrices(text, hint) {
+  // `inferredCurrency` (optional): when set, bare comma-grouped numbers with no
+  // explicit currency marker are treated as that currency.
+  function findPrices(text, hint, inferredCurrency) {
     const matches = [];
     let m;
 
@@ -62,6 +94,18 @@
         const amt = parseAmount(m[1]);
         if (amt != null) {
           matches.push({ start: m.index, end: m.index + m[0].length, amount: amt, currency: ccy });
+        }
+      }
+    }
+
+    // Bare comma-grouped numbers (no marker), tagged with the inferred currency.
+    if (inferredCurrency) {
+      const bareRe = /(?<![\d., ])(\d{1,3}(?:,\d{3})+)(?![\d., ])/g;
+      while ((m = bareRe.exec(text))) {
+        if (NON_PRICE_UNIT.test(text.slice(m.index + m[0].length))) continue;
+        const amt = parseAmount(m[1]);
+        if (amt != null) {
+          matches.push({ start: m.index, end: m.index + m[0].length, amount: amt, currency: inferredCurrency });
         }
       }
     }
@@ -111,12 +155,13 @@
   async function annotate(roots, opts) {
     const { fromHint, seen, convert } = opts;
     const tgt = (opts.target || 'USD').toUpperCase();
+    const inferred = inferSourceCurrency(fromHint);
     const nodes = gatherNodes(roots, seen);
 
     for (const node of nodes) {
       if (seen.has(node)) continue;
       const text = node.nodeValue;
-      const prices = findPrices(text, fromHint);
+      const prices = findPrices(text, fromHint, inferred);
       if (!prices.length) continue;
       seen.add(node);
 
@@ -161,5 +206,5 @@
     }
   }
 
-  globalThis.LuxeCurrency = { annotate, findPrices };
+  globalThis.LuxeCurrency = { annotate, findPrices, inferSourceCurrency };
 })();

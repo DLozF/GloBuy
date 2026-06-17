@@ -9,6 +9,11 @@
     'SVG', 'CANVAS', 'IFRAME', 'OBJECT', 'TEMPLATE'
   ]);
 
+  // A text node that is ONLY a currency symbol/word: machine translation turns a
+  // lone "원" into "circle" (out of context it means circle, not won), so leave
+  // these untranslated. Phrases like "배송비 4,000원" still translate normally.
+  const CCY_ONLY = /^[\s ]*(?:₩|￦|¥|€|£|\$|원|엔|円|元|위안|달러|유로|엔화)[\s ]*$/;
+
   function shouldSkipEl(el) {
     if (!el) return true;
     if (SKIP_TAGS.has(el.tagName)) return true;
@@ -37,6 +42,8 @@
         // Must contain an actual letter — pure numbers/symbols/prices are left
         // for the currency module.
         if (!/\p{L}/u.test(v)) return NodeFilter.FILTER_REJECT;
+        // A standalone currency word/symbol — leave for the currency module.
+        if (CCY_ONLY.test(v)) return NodeFilter.FILTER_REJECT;
         if (shouldSkipEl(node.parentElement)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }

@@ -86,10 +86,40 @@
       translator = await LuxeTranslator.getTranslator(srcLang, tgtLang, (loaded) => notify('downloading', loaded));
       return true;
     } catch (e) {
+      // Chrome requires a user gesture to *start* the on-device model download
+      // (availability "downloadable"/"downloading"). Auto-running on page load
+      // has no gesture, so defer: create the translator on the user's first
+      // interaction, then translate. Once the model is cached, this path is
+      // skipped on later visits.
+      if (e && e.name === 'NotAllowedError') {
+        armGestureInit();
+        notify('needsgesture');
+        return false;
+      }
       console.warn('[Luxe] translator init failed', e);
       notify('pairunavailable');
       return false;
     }
+  }
+
+  let gestureArmed = false;
+  function armGestureInit() {
+    if (gestureArmed) return;
+    gestureArmed = true;
+    const cleanup = () => {
+      window.removeEventListener('pointerdown', handler, true);
+      window.removeEventListener('keydown', handler, true);
+      gestureArmed = false;
+    };
+    const handler = async () => {
+      cleanup();
+      if (!enabled) return;
+      // Within the gesture's transient activation, retry creation (kicks off the
+      // model download) and run the full translation pass.
+      if (await ensureTranslator()) await runTranslatePasses();
+    };
+    window.addEventListener('pointerdown', handler, true);
+    window.addEventListener('keydown', handler, true);
   }
 
   async function translateNodes(nodes) {
@@ -112,8 +142,9 @@
           // module can't detect and convert them afterwards.
           let priceLiterals = null;
           if (globalThis.LuxeCurrency && /\d/.test(original)) {
+            const inferred = LuxeCurrency.inferSourceCurrency(srcLang);
             priceLiterals = LuxeCurrency
-              .findPrices(original, srcLang)
+              .findPrices(original, srcLang, inferred)
               .map((p) => original.slice(p.start, p.end));
             if (!priceLiterals.length) priceLiterals = null;
           }
@@ -236,17 +267,23 @@
     });
   }
 
+  // Translation passes that need a ready `translator`. Shared by run() and the
+  // deferred gesture handler in armGestureInit().
+  async function runTranslatePasses() {
+    if (!translator) return;
+    const roots = [document.body].filter(Boolean);
+    await processTranslate(roots);
+    await translateTitle();
+    await setupSearch();
+  }
+
   async function run() {
     if (running) return;
     running = true;
     notify('starting');
     const ok = await ensureTranslator();
     const roots = [document.body].filter(Boolean);
-    if (ok) {
-      await processTranslate(roots);
-      await translateTitle();
-      await setupSearch();
-    }
+    if (ok) await runTranslatePasses();
     await processCurrency(roots); // currency runs even if translation is unavailable
     await processSizes(roots);    // sizes run even if translation is unavailable
 
