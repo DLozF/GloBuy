@@ -8,7 +8,7 @@ const LANGUAGES = [
   ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
-const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, autoTranslate: true };
+const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true };
 
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -46,6 +46,7 @@ async function init() {
   $('lang').value = s.targetLanguage;
   $('ccy').value = s.targetCurrency;
   $('gloss').checked = s.glossaryEnabled;
+  $('size').checked = s.sizeEnabled;
 
   const tab = await activeTab();
   const host = hostOf(tab && tab.url);
@@ -70,6 +71,7 @@ async function init() {
       targetLanguage: $('lang').value,
       targetCurrency: $('ccy').value,
       glossaryEnabled: $('gloss').checked,
+      sizeEnabled: $('size').checked,
       autoTranslate: true
     };
     await chrome.storage.sync.set({ settings });
@@ -86,6 +88,9 @@ async function init() {
 
   $('lang').addEventListener('change', saveAndReload);
   $('ccy').addEventListener('change', saveAndReload);
+  // Size conversion adds inline annotations, so reload to apply/remove them on
+  // already-rendered content (matches the currency toggle's behavior).
+  $('size').addEventListener('change', saveAndReload);
   $('gloss').addEventListener('change', saveSettings);
   $('orig').addEventListener('change', async (e) => {
     await send(tab.id, { type: 'showOriginal', value: e.target.checked });

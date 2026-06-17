@@ -16,6 +16,8 @@
         "src/content/dom-walker.js",
         "src/content/translator.js",
         "src/content/currency.js",
+        "src/content/sizes.js",
+        "src/content/search.js",
         "src/content/content.js"
       ],
       "run_at": "document_idle",

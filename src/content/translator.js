@@ -18,7 +18,7 @@
     try {
       if ((await LanguageDetector.availability()) === 'unavailable') return null;
       const detector = await LanguageDetector.create();
-      const results = await detector.detect(sample.slice(0, 1000));
+      const results = await detector.detect(sample.slice(0, 4000));
       if (results && results.length) {
         const top = results.find((r) => r.detectedLanguage && r.detectedLanguage !== 'und') || results[0];
         return top.detectedLanguage || null;
@@ -89,12 +89,21 @@
     if (gloss) for (const k of Object.keys(gloss)) entries.push({ match: k, value: gloss[k] });
     if (protectLiterals) for (const lit of protectLiterals) entries.push({ match: lit, value: lit });
     const { text: prepared, map } = protect(text, entries);
-    try {
-      const translated = await translator.translate(prepared);
-      return restore(translated, map);
-    } catch (e) {
-      return text; // on failure, leave the original untouched
+    // Retry transient failures (model still warming up, the instance momentarily
+    // busy under concurrency) instead of silently giving up — a swallowed error
+    // here is what leaves random nodes untranslated. Throw only after retries so
+    // the caller can decide (re-queue the node) rather than mark it done.
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const translated = await translator.translate(prepared);
+        return restore(translated, map);
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+      }
     }
+    throw lastErr || new Error('translate failed');
   }
 
   globalThis.LuxeTranslator = {
