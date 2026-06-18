@@ -244,8 +244,11 @@
 
   async function translateQuery(text) {
     if (!reverseTranslator) return text;
+    // Keep ALL-CAPS tokens (likely brand names — GUCCI, CHANEL, LV) verbatim
+    // rather than transliterating them into something the catalog won't match.
+    const brands = text.match(/\b[A-Z][A-Z0-9]{1,}\b/g);
     try {
-      return await LuxeTranslator.translateText(reverseTranslator, text, null, null);
+      return await LuxeTranslator.translateText(reverseTranslator, text, null, brands);
     } catch (e) {
       return text; // submit the original query rather than failing the search
     }
