@@ -293,10 +293,21 @@
         if (translator) await processTranslate(added);
         await processCurrency(added);
         await processSizes(added);
+        // Newly annotated nodes default to visible; hide them if we're currently
+        // showing originals.
+        if (showingOriginal) setAnnotationsVisible(false);
       });
     }
     notify('done');
     running = false;
+  }
+
+  // Currency/size conversions are additive annotations, not translated text, so
+  // "show original" (and disable) should hide them too — and bring them back
+  // when translation is re-shown.
+  function setAnnotationsVisible(visible) {
+    const spans = document.querySelectorAll('span.lt-ccy, span.lt-size');
+    for (const s of spans) s.style.display = visible ? '' : 'none';
   }
 
   function setShowOriginal(on) {
@@ -309,6 +320,7 @@
       if (r.el.getAttribute(r.attr) !== want) r.el.setAttribute(r.attr, want);
     }
     if (titleRecord) document.title = on ? titleRecord.orig : titleRecord.trans;
+    setAnnotationsVisible(!on);
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
