@@ -30,6 +30,7 @@
   const attrRecords = [];            // { el, attr, orig, trans } for show-original
   const originals = new Map();       // node -> original source text
   const translatedVals = new Map();  // node -> translated text
+  const revertCount = new WeakMap(); // node -> times the site reverted our text
 
   async function loadSettings() {
     const stored = await chrome.storage.sync.get(['settings', 'siteState']);
@@ -230,6 +231,25 @@
     await LuxeSizes.annotate(roots, { seen: seenSize });
   }
 
+  // A data-bound site framework can rewrite a node we translated back to its
+  // source text (an in-place characterData edit). Re-translate such nodes, but
+  // cap retries so we don't get stuck in a render war, and ignore the echo of
+  // our own writes.
+  async function retranslateReverted(changed) {
+    if (!translator || !changed || !changed.length) return;
+    const batch = [];
+    for (const node of changed) {
+      if (node._ltSkip || !translatedVals.has(node)) continue;
+      if (node.nodeValue === translatedVals.get(node)) continue; // our own write
+      const c = revertCount.get(node) || 0;
+      if (c >= 3) continue;
+      revertCount.set(node, c + 1);
+      seenText.delete(node); // allow re-collection by translateNodes
+      batch.push(node);
+    }
+    if (batch.length) await translateNodes(batch);
+  }
+
   // Reverse translator (target -> source) for search-query translation.
   async function ensureReverseTranslator() {
     if (reverseTranslator) return true;
@@ -291,11 +311,14 @@
     await processSizes(roots);    // sizes run even if translation is unavailable
 
     if (!observer) {
-      observer = LuxeWalker.observe(async (added) => {
+      observer = LuxeWalker.observe(async (added, changed) => {
         if (!enabled) return;
         if (translator) await processTranslate(added);
         await processCurrency(added);
         await processSizes(added);
+        // Re-apply translations the site reverted in place (skip while showing
+        // originals — we want source text then).
+        if (!showingOriginal) await retranslateReverted(changed);
         // Newly annotated nodes default to visible; hide them if we're currently
         // showing originals.
         if (showingOriginal) setAnnotationsVisible(false);

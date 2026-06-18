@@ -105,12 +105,21 @@
     return out;
   }
 
-  // Watch for added content. Calls back with an array of added nodes (elements
-  // or text nodes), filtering out our own currency annotations to avoid loops.
+  // Watch for content changes. Calls back with (added, changed):
+  //  - `added`:   newly inserted nodes (elements/text), minus our own annotations
+  //  - `changed`: text nodes whose value was edited in place (characterData) —
+  //               data-bound site frameworks revert our translations this way,
+  //               and without watching characterData we'd never re-apply.
   function observe(callback) {
     const obs = new MutationObserver((mutations) => {
       const added = [];
+      const changed = [];
       for (const m of mutations) {
+        if (m.type === 'characterData') {
+          const n = m.target;
+          if (n && n.nodeType === Node.TEXT_NODE && !n._ltSkip) changed.push(n);
+          continue;
+        }
         for (const node of m.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
             if (node.classList && node.classList.contains('lt-ccy')) continue;
@@ -122,11 +131,12 @@
           }
         }
       }
-      if (added.length) callback(added);
+      if (added.length || changed.length) callback(added, changed);
     });
     obs.observe(document.documentElement || document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      characterData: true
     });
     return obs;
   }
