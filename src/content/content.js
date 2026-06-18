@@ -244,8 +244,11 @@
 
   async function translateQuery(text) {
     if (!reverseTranslator) return text;
+    // Keep ALL-CAPS tokens (likely brand names — GUCCI, CHANEL, LV) verbatim
+    // rather than transliterating them into something the catalog won't match.
+    const brands = text.match(/\b[A-Z][A-Z0-9]{1,}\b/g);
     try {
-      return await LuxeTranslator.translateText(reverseTranslator, text, null, null);
+      return await LuxeTranslator.translateText(reverseTranslator, text, null, brands);
     } catch (e) {
       return text; // submit the original query rather than failing the search
     }
@@ -293,10 +296,21 @@
         if (translator) await processTranslate(added);
         await processCurrency(added);
         await processSizes(added);
+        // Newly annotated nodes default to visible; hide them if we're currently
+        // showing originals.
+        if (showingOriginal) setAnnotationsVisible(false);
       });
     }
     notify('done');
     running = false;
+  }
+
+  // Currency/size conversions are additive annotations, not translated text, so
+  // "show original" (and disable) should hide them too — and bring them back
+  // when translation is re-shown.
+  function setAnnotationsVisible(visible) {
+    const spans = document.querySelectorAll('span.lt-ccy, span.lt-size');
+    for (const s of spans) s.style.display = visible ? '' : 'none';
   }
 
   function setShowOriginal(on) {
@@ -309,6 +323,7 @@
       if (r.el.getAttribute(r.attr) !== want) r.el.setAttribute(r.attr, want);
     }
     if (titleRecord) document.title = on ? titleRecord.orig : titleRecord.trans;
+    setAnnotationsVisible(!on);
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

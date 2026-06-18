@@ -43,7 +43,11 @@
           m.addEventListener('downloadprogress', (e) => onProgress(e.loaded));
         };
       }
-      return Translator.create(opts);
+      const t = await Translator.create(opts);
+      // Per-pair cache of translate() outputs (see translateText). Listing pages
+      // repeat the same labels across many cards; this translates each once.
+      t._ltCache = new Map();
+      return t;
     })();
 
     cache.set(key, p);
@@ -89,6 +93,11 @@
     if (gloss) for (const k of Object.keys(gloss)) entries.push({ match: k, value: gloss[k] });
     if (protectLiterals) for (const lit of protectLiterals) entries.push({ match: lit, value: lit });
     const { text: prepared, map } = protect(text, entries);
+    // `prepared` already encodes glossary + price protection as sentinels, so
+    // translate() is a pure function of it — safe to cache the raw output per
+    // language pair and re-run restore() (cheap) with this call's map.
+    const memo = translator._ltCache;
+    if (memo && memo.has(prepared)) return restore(memo.get(prepared), map);
     // Retry transient failures (model still warming up, the instance momentarily
     // busy under concurrency) instead of silently giving up — a swallowed error
     // here is what leaves random nodes untranslated. Throw only after retries so
@@ -97,6 +106,11 @@
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const translated = await translator.translate(prepared);
+        // Cap the cache so infinite-scroll pages can't grow it unbounded.
+        if (memo) {
+          if (memo.size >= 5000) memo.clear();
+          memo.set(prepared, translated);
+        }
         return restore(translated, map);
       } catch (e) {
         lastErr = e;

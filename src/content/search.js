@@ -8,8 +8,20 @@
 // the query, writing it back, then re-dispatching the submit with a one-shot
 // bypass flag so our own re-submit passes straight through.
 (function () {
+  // Hangul, Kana, CJK ideographs, and fullwidth forms — i.e. the scripts these
+  // sites use. If the query already contains them, the user is typing in the
+  // site's language, so translating would mangle it.
+  const CJK = /[　-ヿ㐀-鿿가-힯＀-￯]/;
+
+  // Translate only a query that is in the user's (Latin) language and not
+  // already (partly) in the site's language — fixes mixed queries like
+  // "GUCCI 가방" being reverse-translated into nonsense.
+  function shouldTranslateQuery(v) {
+    return /[A-Za-z]/.test(v) && !CJK.test(v);
+  }
+
   let translateQuery = null;
-  let shouldTranslate = (v) => /[A-Za-z]/.test(v); // default: has Latin letters
+  let shouldTranslate = shouldTranslateQuery;
   let installed = false;
 
   const INPUT_SEL = [
@@ -87,5 +99,5 @@
     installed = true;
   }
 
-  globalThis.LuxeSearch = { install };
+  globalThis.LuxeSearch = { install, shouldTranslateQuery };
 })();
