@@ -30,6 +30,7 @@
   const attrRecords = [];            // { el, attr, orig, trans } for show-original
   const originals = new Map();       // node -> original source text
   const translatedVals = new Map();  // node -> translated text
+  const revertCount = new WeakMap(); // node -> times the site reverted our text
 
   async function loadSettings() {
     const stored = await chrome.storage.sync.get(['settings', 'siteState']);
@@ -230,6 +231,32 @@
     await LuxeSizes.annotate(roots, { seen: seenSize });
   }
 
+  // Handle text nodes edited in place (characterData). Two cases on these sites:
+  //  - a skeleton node populated with fresh source text after render, and
+  //  - a data-bound framework reverting a node we already translated.
+  // Both are translated here. Guards: ignore the echo of our own writes, skip
+  // non-text/currency-only markers and skipped containers, and cap per-node
+  // retries so we never get stuck in a render war.
+  const CCY_ONLY = /^[\s ]*(?:₩|￦|¥|€|£|\$|원|엔|円|元|위안|달러|유로|엔화)[\s ]*$/;
+  async function translateChanged(changed) {
+    if (!translator || !changed || !changed.length) return;
+    const batch = [];
+    for (const node of changed) {
+      if (node._ltSkip) continue;
+      const v = node.nodeValue;
+      if (!v || !v.trim()) continue;
+      if (translatedVals.get(node) === v) continue;            // our own write
+      if (!/\p{L}/u.test(v) || CCY_ONLY.test(v)) continue;     // nothing to translate
+      if (LuxeWalker.shouldSkipEl(node.parentElement)) continue;
+      const c = revertCount.get(node) || 0;
+      if (c >= 3) continue;
+      revertCount.set(node, c + 1);
+      seenText.delete(node); // allow (re)translation by translateNodes
+      batch.push(node);
+    }
+    if (batch.length) await translateNodes(batch);
+  }
+
   // Reverse translator (target -> source) for search-query translation.
   async function ensureReverseTranslator() {
     if (reverseTranslator) return true;
@@ -285,22 +312,31 @@
     running = true;
     notify('starting');
     const ok = await ensureTranslator();
-    const roots = [document.body].filter(Boolean);
-    if (ok) await runTranslatePasses();
-    await processCurrency(roots); // currency runs even if translation is unavailable
-    await processSizes(roots);    // sizes run even if translation is unavailable
 
+    // Start the observer BEFORE the initial passes. These sites lazy-render the
+    // product grid right after load; if it appears during our first pass it must
+    // still be caught. (Previously the observer started last, so translation
+    // missed the grid while currency — which re-scans the whole body a moment
+    // later — happened to catch it.)
     if (!observer) {
-      observer = LuxeWalker.observe(async (added) => {
+      observer = LuxeWalker.observe(async (added, changed) => {
         if (!enabled) return;
         if (translator) await processTranslate(added);
         await processCurrency(added);
         await processSizes(added);
+        // Translate text the site populated/reverted in place (skip while
+        // showing originals — we want source text then).
+        if (!showingOriginal) await translateChanged(changed);
         // Newly annotated nodes default to visible; hide them if we're currently
         // showing originals.
         if (showingOriginal) setAnnotationsVisible(false);
       });
     }
+
+    const roots = [document.body].filter(Boolean);
+    if (ok) await runTranslatePasses();
+    await processCurrency(roots); // currency runs even if translation is unavailable
+    await processSizes(roots);    // sizes run even if translation is unavailable
     notify('done');
     running = false;
   }
