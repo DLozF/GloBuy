@@ -58,6 +58,13 @@
 
   const NUM = '(\\d[\\d.,\\s\\u00a0]*\\d|\\d)';
 
+  // Compiled once — these were rebuilt (~8 RegExp compilations) on every text
+  // node before. `g` regexes are stateful, so each use resets `.lastIndex`.
+  const SYM_RE = new RegExp('([₩$€£¥₹₫฿])\\s?' + NUM, 'g');
+  const CODE_RE = new RegExp(NUM + '\\s?(USD|EUR|GBP|JPY|KRW|CNY|INR|VND|THB)\\b', 'gi');
+  const SUFFIX_RE = SUFFIX_CCY.map(function (e) { return [new RegExp(NUM + '\\s?' + e[0], 'g'), e[1]]; });
+  const BARE_RE = /(?<![\d., ])(\d{1,3}(?:,\d{3})+)(?![\d., ])/g;
+
   // Units that follow a number but mean it's NOT a price (counts, dates, sizes),
   // so bare-number inference doesn't convert e.g. "1,234명" view counts. CJK
   // units need no word boundary (they aren't ASCII \w); ASCII units must not run
@@ -71,8 +78,8 @@
     const matches = [];
     let m;
 
-    const symRe = new RegExp('([₩$€£¥₹₫฿])\\s?' + NUM, 'g');
-    while ((m = symRe.exec(text))) {
+    SYM_RE.lastIndex = 0;
+    while ((m = SYM_RE.exec(text))) {
       const ccy = resolveSymbol(m[1], hint);
       const amt = parseAmount(m[2]);
       if (ccy && amt != null) {
@@ -80,16 +87,16 @@
       }
     }
 
-    const codeRe = new RegExp(NUM + '\\s?(USD|EUR|GBP|JPY|KRW|CNY|INR|VND|THB)\\b', 'gi');
-    while ((m = codeRe.exec(text))) {
+    CODE_RE.lastIndex = 0;
+    while ((m = CODE_RE.exec(text))) {
       const amt = parseAmount(m[1]);
       if (amt != null) {
         matches.push({ start: m.index, end: m.index + m[0].length, amount: amt, currency: m[2].toUpperCase() });
       }
     }
 
-    for (const [suf, ccy] of SUFFIX_CCY) {
-      const re = new RegExp(NUM + '\\s?' + suf, 'g');
+    for (const [re, ccy] of SUFFIX_RE) {
+      re.lastIndex = 0;
       while ((m = re.exec(text))) {
         const amt = parseAmount(m[1]);
         if (amt != null) {
@@ -100,8 +107,8 @@
 
     // Bare comma-grouped numbers (no marker), tagged with the inferred currency.
     if (inferredCurrency) {
-      const bareRe = /(?<![\d., ])(\d{1,3}(?:,\d{3})+)(?![\d., ])/g;
-      while ((m = bareRe.exec(text))) {
+      BARE_RE.lastIndex = 0;
+      while ((m = BARE_RE.exec(text))) {
         if (NON_PRICE_UNIT.test(text.slice(m.index + m[0].length))) continue;
         const amt = parseAmount(m[1]);
         if (amt != null) {
@@ -151,6 +158,12 @@
     return nodes;
   }
 
+  // Rate cache across annotate calls (observer batches) for the page session —
+  // KRW->USD is fetched once and reused for every price, instead of a
+  // service-worker round-trip per price. Target-currency changes reload the page
+  // (fresh content script -> fresh cache), so this can't serve a stale target.
+  const _rateCache = new Map(); // "FROM>TGT" -> rate number | null
+
   // opts: { fromHint, target, seen (WeakSet), convert(from,to)->Promise<{rate}> }
   async function annotate(roots, opts) {
     const { fromHint, seen, convert } = opts;
@@ -158,25 +171,40 @@
     const inferred = inferSourceCurrency(fromHint);
     const nodes = gatherNodes(roots, seen);
 
+    // Pass 1: detect prices, mark nodes handled, collect currencies still needed.
+    const priced = [];
+    const need = new Set();
     for (const node of nodes) {
       if (seen.has(node)) continue;
       const text = node.nodeValue;
       const prices = findPrices(text, fromHint, inferred);
       if (!prices.length) continue;
       seen.add(node);
-
-      const converted = [];
+      priced.push({ node, text, prices });
       for (const p of prices) {
-        if (p.currency === tgt) { converted.push(null); continue; }
-        let rate = null;
-        try {
-          const res = await convert(p.currency, tgt);
-          rate = res && typeof res.rate === 'number' ? res.rate : null;
-        } catch (e) { /* leave unconverted */ }
-        converted.push(rate != null ? p.amount * rate : null);
+        if (p.currency !== tgt && !_rateCache.has(p.currency + '>' + tgt)) need.add(p.currency);
       }
+    }
+    if (!priced.length) return;
+
+    // Fetch each distinct rate once, in parallel.
+    await Promise.all([...need].map(async (from) => {
+      const key = from + '>' + tgt;
+      try {
+        const res = await convert(from, tgt);
+        _rateCache.set(key, res && typeof res.rate === 'number' ? res.rate : null);
+      } catch (e) { _rateCache.set(key, null); }
+    }));
+
+    // Pass 2: build annotations synchronously from the cached rates.
+    for (const { node, text, prices } of priced) {
+      if (!node.parentNode || node.nodeValue !== text) continue; // changed under us
+      const converted = prices.map((p) => {
+        if (p.currency === tgt) return null;
+        const r = _rateCache.get(p.currency + '>' + tgt);
+        return r != null ? p.amount * r : null;
+      });
       if (!converted.some((c) => c != null)) continue;
-      if (!node.parentNode) continue;
 
       const frag = document.createDocumentFragment();
       let cursor = 0;

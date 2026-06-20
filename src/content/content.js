@@ -123,53 +123,63 @@
     window.addEventListener('keydown', handler, true);
   }
 
+  const CHUNK = 40; // nodes per batched translate() call
+
+  function inViewport(node) {
+    const el = node.parentElement;
+    if (!el || !el.getBoundingClientRect) return false;
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < (window.innerHeight || 0) &&
+           r.right > 0 && r.left < (window.innerWidth || 0);
+  }
+
+  // Prices in this node are protected so the translator leaves them intact (e.g.
+  // doesn't turn ₩/원 into the word "won") — otherwise the currency module can't
+  // detect and convert them afterwards.
+  function priceLiteralsFor(text, inferred) {
+    if (!globalThis.LuxeCurrency || !/\d/.test(text)) return null;
+    const lits = LuxeCurrency.findPrices(text, srcLang, inferred).map((p) => text.slice(p.start, p.end));
+    return lits.length ? lits : null;
+  }
+
   async function translateNodes(nodes) {
     const gloss = glossFor();
-    const failed = [];
+    const inferred = globalThis.LuxeCurrency ? LuxeCurrency.inferSourceCurrency(srcLang) : null;
 
-    // `collectFailures`: on the first pass, a node whose translation throws is
-    // re-queued (NOT marked seen) so the gentler retry pass can pick it up. This
-    // is the fix for "some nodes randomly stay untranslated": a transient failure
-    // no longer permanently marks the node done.
-    async function pass(list, pool, collectFailures) {
-      let i = 0;
-      async function worker() {
-        while (i < list.length) {
-          const node = list[i++];
-          if (seenText.has(node) || node._ltSkip) continue;
-          const original = node.nodeValue;
-          // Protect any prices in this node so the translator leaves them intact
-          // (e.g. doesn't turn ₩/원 into the word "won") — otherwise the currency
-          // module can't detect and convert them afterwards.
-          let priceLiterals = null;
-          if (globalThis.LuxeCurrency && /\d/.test(original)) {
-            const inferred = LuxeCurrency.inferSourceCurrency(srcLang);
-            priceLiterals = LuxeCurrency
-              .findPrices(original, srcLang, inferred)
-              .map((p) => original.slice(p.start, p.end));
-            if (!priceLiterals.length) priceLiterals = null;
-          }
-          let translated;
-          try {
-            translated = await LuxeTranslator.translateText(translator, original, gloss, priceLiterals);
-          } catch (e) {
-            if (collectFailures) failed.push(node); // retry later; leave unseen
-            continue;
-          }
-          seenText.add(node);
-          // Only apply if the node text hasn't changed underneath us.
-          if (translated && translated !== original && node.nodeValue === original) {
-            originals.set(node, original);
-            translatedVals.set(node, translated);
-            node.nodeValue = showingOriginal ? original : translated;
-          }
+    let pending = nodes.filter((n) => !seenText.has(n) && !n._ltSkip && n.nodeValue);
+    if (!pending.length) return;
+    // Viewport-first: on-screen text translates before off-screen, so the page
+    // the user is looking at flips to English first. The on-device model
+    // serializes, so we batch many nodes per call rather than run a worker pool.
+    const visible = [], rest = [];
+    for (const n of pending) (inViewport(n) ? visible : rest).push(n);
+    pending = visible.concat(rest);
+
+    for (let i = 0; i < pending.length; i += CHUNK) {
+      const live = pending.slice(i, i + CHUNK).filter((n) => !seenText.has(n) && !n._ltSkip);
+      if (!live.length) continue;
+      const items = live.map((node) => {
+        const original = node.nodeValue;
+        return { node, original, text: original, protectLiterals: priceLiteralsFor(original, inferred) };
+      });
+      let outs;
+      try {
+        outs = await LuxeTranslator.translateBatch(translator, items, gloss);
+      } catch (e) {
+        continue; // whole chunk failed; nodes stay unseen for a later retry
+      }
+      for (let k = 0; k < items.length; k++) {
+        const { node, original } = items[k];
+        const translated = outs[k];
+        if (translated === undefined) continue; // failed for this item; retry later
+        seenText.add(node);
+        if (translated && translated !== original && node.nodeValue === original) {
+          originals.set(node, original);
+          translatedVals.set(node, translated);
+          node.nodeValue = showingOriginal ? original : translated;
         }
       }
-      await Promise.all(Array.from({ length: pool }, worker));
     }
-
-    await pass(nodes, 6, true);
-    if (failed.length) await pass(failed, 2, false); // gentler retry for stragglers
   }
 
   async function translateAttrs(targets) {
@@ -248,9 +258,13 @@
       if (translatedVals.get(node) === v) continue;            // our own write
       if (!/\p{L}/u.test(v) || CCY_ONLY.test(v)) continue;     // nothing to translate
       if (LuxeWalker.shouldSkipEl(node.parentElement)) continue;
-      const c = revertCount.get(node) || 0;
-      if (c >= 3) continue;
-      revertCount.set(node, c + 1);
+      // Only a true revert (back to the source we last translated from) counts
+      // toward the cap; genuinely new content resets it, so recycled/virtualized
+      // nodes keep translating instead of stalling after 3 edits.
+      const isRevert = originals.get(node) === v;
+      const c = isRevert ? (revertCount.get(node) || 0) : 0;
+      if (isRevert && c >= 3) continue;
+      revertCount.set(node, isRevert ? c + 1 : 0);
       seenText.delete(node); // allow (re)translation by translateNodes
       batch.push(node);
     }
