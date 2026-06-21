@@ -8,7 +8,35 @@
   // Private Use Area codepoints (U+E000+) are passed through untouched by
   // machine translation, so we use them as sentinels to protect glossary terms.
   const PUA_START = 0xE000;
+  // A separate PUA codepoint (well above the protection sentinels, which top out
+  // ~U+E190 at the 400-entry cap) used to join many nodes into one translate()
+  // call and split the result back apart — see translateBatch.
+  const BATCH_DELIM = String.fromCharCode(0xF8FF);
   const cache = new Map(); // "src->tgt" -> Promise<Translator>
+  // Glossary -> sorted [{match,value}] entries, built once per glossary object
+  // instead of rebuilt+resorted on every node.
+  const glossEntriesCache = new WeakMap();
+
+  function glossEntries(gloss) {
+    if (!gloss) return [];
+    let e = glossEntriesCache.get(gloss);
+    if (!e) {
+      e = Object.keys(gloss).map((k) => ({ match: k, value: gloss[k] }));
+      e.sort((a, b) => b.match.length - a.match.length); // longest match first
+      glossEntriesCache.set(gloss, e);
+    }
+    return e;
+  }
+
+  // Pre-sorted glossary entries + per-node price literals. Glossary terms (CJK
+  // words) and price literals (digits/symbols) don't overlap, so appending the
+  // literals keeps longest-first ordering effectively intact without re-sorting.
+  function buildEntries(gloss, protectLiterals) {
+    const base = glossEntries(gloss);
+    if (!protectLiterals || !protectLiterals.length) return base;
+    const lits = protectLiterals.map((lit) => ({ match: lit, value: lit }));
+    return base.length ? base.concat(lits) : lits;
+  }
 
   const apiAvailable = () => typeof self !== 'undefined' && 'Translator' in self;
   const detectorAvailable = () => typeof self !== 'undefined' && 'LanguageDetector' in self;
@@ -59,16 +87,14 @@
     }
   }
 
-  // Replace protected substrings with sentinels before translation.
-  // `entries` is [{ match, value }]: glossary terms map to their preferred
-  // English; prices map to themselves (so they survive translation intact).
+  // Replace protected substrings with sentinels before translation. `entries`
+  // is [{ match, value }] pre-ordered longest-match-first (see buildEntries):
+  // glossary terms map to their preferred English; prices map to themselves.
   function protect(text, entries) {
     if (!entries || !entries.length) return { text, map: null };
     let out = text;
     const map = [];
-    // Longest match first so e.g. "정품인증" wins over "정품".
-    const sorted = entries.slice().sort((a, b) => b.match.length - a.match.length);
-    for (const { match, value } of sorted) {
+    for (const { match, value } of entries) {
       if (map.length >= 400) break;
       if (!match || out.indexOf(match) === -1) continue;
       const token = String.fromCodePoint(PUA_START + map.length);
@@ -85,33 +111,15 @@
     return out;
   }
 
-  // `gloss` is the per-language glossary object (term -> English) or null.
-  // `protectLiterals` is an array of substrings (e.g. detected prices) to keep
-  // verbatim through translation.
-  async function translateText(translator, text, gloss, protectLiterals) {
-    const entries = [];
-    if (gloss) for (const k of Object.keys(gloss)) entries.push({ match: k, value: gloss[k] });
-    if (protectLiterals) for (const lit of protectLiterals) entries.push({ match: lit, value: lit });
-    const { text: prepared, map } = protect(text, entries);
-    // `prepared` already encodes glossary + price protection as sentinels, so
-    // translate() is a pure function of it — safe to cache the raw output per
-    // language pair and re-run restore() (cheap) with this call's map.
-    const memo = translator._ltCache;
-    if (memo && memo.has(prepared)) return restore(memo.get(prepared), map);
-    // Retry transient failures (model still warming up, the instance momentarily
-    // busy under concurrency) instead of silently giving up — a swallowed error
-    // here is what leaves random nodes untranslated. Throw only after retries so
-    // the caller can decide (re-queue the node) rather than mark it done.
+  // One translate() call with retry for transient failures (model warming up /
+  // momentarily busy). Throws only after retries so the caller can re-queue
+  // rather than silently mark work done. No caching — used directly for the
+  // batch join (a unique mega-string not worth caching).
+  async function translateOnce(translator, prepared) {
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const translated = await translator.translate(prepared);
-        // Cap the cache so infinite-scroll pages can't grow it unbounded.
-        if (memo) {
-          if (memo.size >= 5000) memo.clear();
-          memo.set(prepared, translated);
-        }
-        return restore(translated, map);
+        return await translator.translate(prepared);
       } catch (e) {
         lastErr = e;
         await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
@@ -120,11 +128,74 @@
     throw lastErr || new Error('translate failed');
   }
 
+  // Cache-wrapped single translate, keyed by the protected string (a pure
+  // function of it), bounded so infinite-scroll pages can't grow it unbounded.
+  async function translateRaw(translator, prepared) {
+    const memo = translator._ltCache;
+    if (memo && memo.has(prepared)) return memo.get(prepared);
+    const out = await translateOnce(translator, prepared);
+    if (memo) {
+      if (memo.size >= 5000) memo.clear();
+      memo.set(prepared, out);
+    }
+    return out;
+  }
+
+  // `gloss` is the per-language glossary object (term -> English) or null.
+  // `protectLiterals` is an array of substrings (e.g. detected prices) to keep
+  // verbatim through translation.
+  async function translateText(translator, text, gloss, protectLiterals) {
+    const { text: prepared, map } = protect(text, buildEntries(gloss, protectLiterals));
+    return restore(await translateRaw(translator, prepared), map);
+  }
+
+  // Translate many text nodes in ONE translate() call (the on-device model
+  // serializes, so per-call overhead — not concurrency — is the cost). Each
+  // item is { text, protectLiterals }. Returns translated strings aligned to
+  // `items`; an entry is undefined only if that item ultimately failed.
+  async function translateBatch(translator, items, gloss) {
+    const memo = translator._ltCache;
+    const results = new Array(items.length);
+    const pending = []; // { idx, prepared, map }
+    for (let i = 0; i < items.length; i++) {
+      const { text, protectLiterals } = items[i];
+      const { text: prepared, map } = protect(text, buildEntries(gloss, protectLiterals));
+      if (memo && memo.has(prepared)) { results[i] = restore(memo.get(prepared), map); continue; }
+      pending.push({ idx: i, prepared, map });
+    }
+    if (!pending.length) return results;
+
+    const perItem = async () => {
+      for (const p of pending) {
+        try { results[p.idx] = restore(await translateRaw(translator, p.prepared), p.map); }
+        catch (e) { /* leave undefined — caller leaves the node untranslated */ }
+      }
+      return results;
+    };
+
+    // Fast path: one call for the whole chunk, joined by a reserved delimiter.
+    let joinedOut;
+    try {
+      joinedOut = await translateOnce(translator, pending.map((p) => p.prepared).join(BATCH_DELIM));
+    } catch (e) {
+      return perItem();
+    }
+    const parts = joinedOut.split(BATCH_DELIM);
+    if (parts.length !== pending.length) return perItem(); // delimiter misaligned
+    for (let j = 0; j < pending.length; j++) {
+      const p = pending[j];
+      if (memo) { if (memo.size >= 5000) memo.clear(); memo.set(p.prepared, parts[j]); }
+      results[p.idx] = restore(parts[j], p.map);
+    }
+    return results;
+  }
+
   globalThis.LuxeTranslator = {
     apiAvailable,
     detectorAvailable,
     detectLanguage,
     getTranslator,
-    translateText
+    translateText,
+    translateBatch
   };
 })();
