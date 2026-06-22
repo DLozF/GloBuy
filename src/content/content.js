@@ -27,10 +27,12 @@
   const seenCcy = new WeakSet();    // text nodes handled by currency
   const seenSize = new WeakSet();   // text nodes handled by size conversion
   const seenAttr = new WeakMap();    // element -> Set<attr> handled by translation
-  const attrRecords = [];            // { el, attr, orig, trans } for show-original
-  const originals = new Map();       // node -> original source text
-  const translatedVals = new Map();  // node -> translated text
   const revertCount = new WeakMap(); // node -> times the site reverted our text
+  // Original/translated text is stamped directly on each node/element as expando
+  // properties (text nodes: _ltOrig / _ltTrans; elements: _ltAttrOrig[attr] /
+  // _ltAttrTrans[attr]) rather than held in module-level Maps. Maps keyed by node
+  // are a leak on infinite-scroll/virtualized pages — they pin every node we ever
+  // touched, even after the page removes it. Expandos are reclaimed with the node.
 
   async function loadSettings() {
     const stored = await chrome.storage.sync.get(['settings', 'siteState']);
@@ -174,8 +176,8 @@
         if (translated === undefined) continue; // failed for this item; retry later
         seenText.add(node);
         if (translated && translated !== original && node.nodeValue === original) {
-          originals.set(node, original);
-          translatedVals.set(node, translated);
+          node._ltOrig = original;
+          node._ltTrans = translated;
           node.nodeValue = showingOriginal ? original : translated;
         }
       }
@@ -200,7 +202,8 @@
         }
         set.add(attr);
         if (translated && translated !== value && el.getAttribute(attr) === value) {
-          attrRecords.push({ el, attr, orig: value, trans: translated });
+          (el._ltAttrOrig || (el._ltAttrOrig = {}))[attr] = value;
+          (el._ltAttrTrans || (el._ltAttrTrans = {}))[attr] = translated;
           el.setAttribute(attr, showingOriginal ? value : translated);
         }
       }
@@ -255,13 +258,13 @@
       if (node._ltSkip) continue;
       const v = node.nodeValue;
       if (!v || !v.trim()) continue;
-      if (translatedVals.get(node) === v) continue;            // our own write
+      if (node._ltTrans === v) continue;                       // our own write
       if (!/\p{L}/u.test(v) || CCY_ONLY.test(v)) continue;     // nothing to translate
       if (LuxeWalker.shouldSkipEl(node.parentElement)) continue;
       // Only a true revert (back to the source we last translated from) counts
       // toward the cap; genuinely new content resets it, so recycled/virtualized
       // nodes keep translating instead of stalling after 3 edits.
-      const isRevert = originals.get(node) === v;
+      const isRevert = node._ltOrig === v;
       const c = isRevert ? (revertCount.get(node) || 0) : 0;
       if (isRevert && c >= 3) continue;
       revertCount.set(node, isRevert ? c + 1 : 0);
@@ -363,14 +366,30 @@
     for (const s of spans) s.style.display = visible ? '' : 'none';
   }
 
+  // Swap every translated text node / attribute between source and translation
+  // by re-walking the live DOM and reading the per-node expandos, rather than
+  // iterating a retained collection. Nodes the page has since removed simply
+  // aren't visited (and stay collectable); nothing is pinned for the page's life.
   function setShowOriginal(on) {
     showingOriginal = !!on;
-    for (const [node, orig] of originals) {
-      node.nodeValue = on ? orig : (translatedVals.get(node) ?? node.nodeValue);
-    }
-    for (const r of attrRecords) {
-      const want = on ? r.orig : r.trans;
-      if (r.el.getAttribute(r.attr) !== want) r.el.setAttribute(r.attr, want);
+    const root = document.body || document.documentElement;
+    if (root) {
+      const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = tw.nextNode())) {
+        if (n._ltTrans === undefined) continue;
+        const want = on ? n._ltOrig : n._ltTrans;
+        if (want !== undefined && n.nodeValue !== want) n.nodeValue = want;
+      }
+      for (const el of root.querySelectorAll('*')) {
+        const trans = el._ltAttrTrans;
+        if (!trans) continue;
+        const orig = el._ltAttrOrig || {};
+        for (const attr in trans) {
+          const want = on ? orig[attr] : trans[attr];
+          if (want !== undefined && el.getAttribute(attr) !== want) el.setAttribute(attr, want);
+        }
+      }
     }
     if (titleRecord) document.title = on ? titleRecord.orig : titleRecord.trans;
     setAnnotationsVisible(!on);
