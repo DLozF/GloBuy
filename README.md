@@ -2,7 +2,7 @@
 
 A Chrome extension (Manifest V3) that **fully translates foreign luxury/resale
 shopping sites** and **converts prices to your currency, inline** — built for
-American shoppers browsing Korean, Japanese, and Chinese sites (e.g.
+American shoppers browsing Korean, Japanese, Chinese, and Vietnamese sites (e.g.
 `wiselux.co.kr`) where Google Translate only does half the job.
 
 ## Why it's different from "just use Google Translate"
@@ -38,8 +38,9 @@ It also goes beyond on-page text:
 - **No backend, $0 running cost.**
 - **Translation:** Chrome's built-in **on-device Translator + LanguageDetector
   APIs** (Chrome 138+) — free, local, no API key.
-- **Currency:** [Frankfurter](https://frankfurter.dev) API — free, no key.
-  Fetched and cached (12h) in the service worker to avoid page CORS.
+- **Currency:** [Frankfurter](https://frankfurter.dev) API — free, no key — with
+  `open.er-api.com` as a keyless fallback for currencies Frankfurter omits (e.g.
+  VND). Fetched and cached (12h) in the service worker to avoid page CORS.
 
 ```
 manifest.json
@@ -52,7 +53,7 @@ src/
     currency.js           Price detection + inline annotation
     sizes.js              KR/JP/EU -> US size detection + inline annotation
     search.js             Search-box interception + reverse-query translation
-  data/glossary.js        Luxury jargon per source language (ko, ja, zh)
+  data/glossary.js        Luxury jargon per source language (ko, ja, zh, vi)
   popup/                  Toggle, target language/currency, glossary, sizes, show-original
 icons/                    16 / 48 / 128 px
 ```
@@ -88,15 +89,18 @@ icons/                    16 / 48 / 128 px
 - **Claude "Premium" tier:** swap the translation backend in `translator.js` for
   best-in-class jargon quality, plus listing summaries and in-image OCR (adds a
   small backend + API key).
-- Broader currency coverage for currencies Frankfurter doesn't support.
 - Custom glossary editor and per-site source-language override.
 
 ## Known limitations
 
-- European-style decimals where `.` is a thousands separator (e.g. `€2.350`) may
-  be parsed as `2.35`. Fine for the comma-separated KRW/JPY/CNY target sites.
-- Size conversion is **approximate** (charts vary by brand/gender) and triggers
-  only on explicit `mm`/`cm`/`EU` markers — a bare number is never converted.
+- Number parsing handles both comma- and dot-grouped amounts (`₩1,200,000`,
+  `$1,234.56`, `€2.350`, `1.234,56`, `1.500.000đ`), but a **bare, unmarked**
+  dot-grouped number is only treated as a price on dot-grouping locales (e.g.
+  VND) — elsewhere it's left alone to avoid misreading a decimal as thousands.
+- Size conversion is **approximate** (charts vary by brand/gender). It uses a
+  gender-specific scale when a women's/men's signal is nearby and a unisex
+  approximation otherwise, and triggers only on explicit `mm`/`cm`/`EU`
+  markers — a bare number is never converted.
 - **Text baked into images** (common in resale product descriptions) can't be
   translated without OCR — planned for the Premium tier (see Roadmap).
 - Translation runs in the top frame only (`all_frames: false`); content inside
