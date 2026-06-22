@@ -83,7 +83,7 @@ icons/                    16 / 48 / 128 px
 - In any search box, type your query in your own language and submit — it's sent
   to the site in the site's language.
 
-## Roadmap (Phase 3)
+## Roadmap
 
 - **Claude "Premium" tier:** swap the translation backend in `translator.js` for
   best-in-class jargon quality, plus listing summaries and in-image OCR (adds a
@@ -98,6 +98,6 @@ icons/                    16 / 48 / 128 px
 - Size conversion is **approximate** (charts vary by brand/gender) and triggers
   only on explicit `mm`/`cm`/`EU` markers — a bare number is never converted.
 - **Text baked into images** (common in resale product descriptions) can't be
-  translated without OCR — planned for the Phase 3 Premium tier.
+  translated without OCR — planned for the Premium tier (see Roadmap).
 - Translation runs in the top frame only (`all_frames: false`); content inside
   iframes is not translated.

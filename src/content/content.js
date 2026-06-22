@@ -418,9 +418,10 @@
     (async () => {
       switch (msg.type) {
         case 'apply':
-          enabled = true;
           showingOriginal = false;
           await loadSettings();
+          // loadSettings() recomputes `enabled` from stored siteState; the popup
+          // only sends 'apply' after enabling this site, so force it on here.
           enabled = true;
           await run();
           sendResponse({ ok: true });
