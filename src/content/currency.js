@@ -12,12 +12,14 @@
     '¥': { ja: 'JPY', zh: 'CNY', _default: 'JPY' },
     '$': { _default: 'USD' }
   };
-  // CJK currency-name suffixes.
+  // Currency-name suffixes that follow the amount (CJK + Vietnamese đ/₫, which
+  // are written after the number, e.g. "500.000đ").
   const SUFFIX_CCY = [
-    ['원', 'KRW'], ['엔', 'JPY'], ['円', 'JPY'], ['元', 'CNY'], ['위안', 'CNY']
+    ['원', 'KRW'], ['엔', 'JPY'], ['円', 'JPY'], ['元', 'CNY'], ['위안', 'CNY'],
+    ['đ', 'VND'], ['₫', 'VND']
   ];
   const DISPLAY_SYMBOL = {
-    USD: '$', EUR: '€', GBP: '£', JPY: '¥', KRW: '₩', CNY: '¥', INR: '₹'
+    USD: '$', EUR: '€', GBP: '£', JPY: '¥', KRW: '₩', CNY: '¥', INR: '₹', VND: '₫'
   };
   const NO_DECIMALS = new Set(['JPY', 'KRW', 'CNY', 'VND']);
 
@@ -29,9 +31,9 @@
   // Infer the page's source currency so bare, unmarked numbers (e.g. a listing
   // that just shows "2,500,000") can still be converted. Returns null when we
   // can't tell — which keeps bare-number conversion OFF for non-CJK sites.
-  const LANG_CCY = { ko: 'KRW', ja: 'JPY', zh: 'CNY' };
-  const TLD_CCY = { kr: 'KRW', jp: 'JPY', cn: 'CNY', hk: 'HKD', tw: 'TWD' };
-  const LOCALE_CCY = { KR: 'KRW', JP: 'JPY', CN: 'CNY', HK: 'HKD', TW: 'TWD' };
+  const LANG_CCY = { ko: 'KRW', ja: 'JPY', zh: 'CNY', vi: 'VND' };
+  const TLD_CCY = { kr: 'KRW', jp: 'JPY', cn: 'CNY', hk: 'HKD', tw: 'TWD', vn: 'VND' };
+  const LOCALE_CCY = { KR: 'KRW', JP: 'JPY', CN: 'CNY', HK: 'HKD', TW: 'TWD', VN: 'VND' };
   let _inferred, _inferredFor;
   function inferSourceCurrency(hint) {
     if (_inferredFor === hint) return _inferred;
@@ -51,8 +53,21 @@
   }
 
   function parseAmount(raw) {
-    const cleaned = raw.replace(/[\s ,]/g, '');
-    const v = parseFloat(cleaned);
+    let s = raw.replace(/[\s\u00a0]/g, '');
+    const hasComma = s.indexOf(',') !== -1;
+    const hasDot = s.indexOf('.') !== -1;
+    if (hasComma && hasDot) {
+      // The right-most separator is the decimal point; the other is thousands.
+      const decimal = s.lastIndexOf(',') > s.lastIndexOf('.') ? ',' : '.';
+      const thousands = decimal === ',' ? '.' : ',';
+      s = s.split(thousands).join('').replace(decimal, '.');
+    } else if (hasComma) {
+      s = /^\d{1,3}(,\d{3})+$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+    } else if (hasDot) {
+      // Groups of exactly 3 (e.g. 1.500.000 / 2.350) = thousands; else decimal.
+      if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    }
+    const v = parseFloat(s);
     return isFinite(v) ? v : null;
   }
 
@@ -64,6 +79,9 @@
   const CODE_RE = new RegExp(NUM + '\\s?(USD|EUR|GBP|JPY|KRW|CNY|INR|VND|THB)\\b', 'gi');
   const SUFFIX_RE = SUFFIX_CCY.map(function (e) { return [new RegExp(NUM + '\\s?' + e[0], 'g'), e[1]]; });
   const BARE_RE = /(?<![\d., ])(\d{1,3}(?:,\d{3})+)(?![\d., ])/g;
+  // Vietnam groups thousands with dots ("1.500.000"); only used when the
+  // inferred currency is VND so it can't mis-fire on dot-separated text elsewhere.
+  const BARE_DOT_RE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+)(?![\d.,])/g;
 
   // Units that follow a number but mean it's NOT a price (counts, dates, sizes),
   // so bare-number inference doesn't convert e.g. "1,234명" view counts. CJK
@@ -109,6 +127,18 @@
     if (inferredCurrency) {
       BARE_RE.lastIndex = 0;
       while ((m = BARE_RE.exec(text))) {
+        if (NON_PRICE_UNIT.test(text.slice(m.index + m[0].length))) continue;
+        const amt = parseAmount(m[1]);
+        if (amt != null) {
+          matches.push({ start: m.index, end: m.index + m[0].length, amount: amt, currency: inferredCurrency });
+        }
+      }
+    }
+
+    // Dot-grouped bare numbers, only for dot-grouping locales (VND).
+    if (inferredCurrency === 'VND') {
+      BARE_DOT_RE.lastIndex = 0;
+      while ((m = BARE_DOT_RE.exec(text))) {
         if (NON_PRICE_UNIT.test(text.slice(m.index + m[0].length))) continue;
         const amt = parseAmount(m[1]);
         if (amt != null) {

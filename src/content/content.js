@@ -11,6 +11,12 @@
 
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
 
+  // Developer logging, off by default. Enable in the content-script console with
+  // `LUXE_DEBUG = true`, or persistently per-origin via `localStorage.LUXE_DEBUG = '1'`.
+  // The flag lives on globalThis so the sibling modules' loggers see it too.
+  try { if (localStorage.getItem('LUXE_DEBUG') === '1') globalThis.LUXE_DEBUG = true; } catch (e) { /* localStorage may be blocked */ }
+  const debug = (...args) => { if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args); };
+
   let settings = Object.assign({}, DEFAULTS);
   let enabled = false;
   let translator = null;
@@ -19,6 +25,14 @@
   let tgtLang = 'en';
   let observer = null;
   let running = false;
+  // Serializes observer-triggered passes: each coalesced batch runs to completion
+  // before the next starts, so two passes can't interleave at their await points
+  // (double-translating a node, or racing currency annotation against translation).
+  let obsChain = Promise.resolve();
+  function enqueue(task) {
+    obsChain = obsChain.then(task).catch((e) => debug('observer pass failed', e)); // best-effort; keep the queue alive
+    return obsChain;
+  }
   let showingOriginal = false;
   let titleRecord = null;            // { orig, trans } for document.title
   let searchInstalled = false;
@@ -27,10 +41,12 @@
   const seenCcy = new WeakSet();    // text nodes handled by currency
   const seenSize = new WeakSet();   // text nodes handled by size conversion
   const seenAttr = new WeakMap();    // element -> Set<attr> handled by translation
-  const attrRecords = [];            // { el, attr, orig, trans } for show-original
-  const originals = new Map();       // node -> original source text
-  const translatedVals = new Map();  // node -> translated text
   const revertCount = new WeakMap(); // node -> times the site reverted our text
+  // Original/translated text is stamped directly on each node/element as expando
+  // properties (text nodes: _ltOrig / _ltTrans; elements: _ltAttrOrig[attr] /
+  // _ltAttrTrans[attr]) rather than held in module-level Maps. Maps keyed by node
+  // are a leak on infinite-scroll/virtualized pages — they pin every node we ever
+  // touched, even after the page removes it. Expandos are reclaimed with the node.
 
   async function loadSettings() {
     const stored = await chrome.storage.sync.get(['settings', 'siteState']);
@@ -97,7 +113,7 @@
         notify('needsgesture');
         return false;
       }
-      console.warn('[Luxe] translator init failed', e);
+      debug('translator init failed', e);
       notify('pairunavailable');
       return false;
     }
@@ -174,8 +190,8 @@
         if (translated === undefined) continue; // failed for this item; retry later
         seenText.add(node);
         if (translated && translated !== original && node.nodeValue === original) {
-          originals.set(node, original);
-          translatedVals.set(node, translated);
+          node._ltOrig = original;
+          node._ltTrans = translated;
           node.nodeValue = showingOriginal ? original : translated;
         }
       }
@@ -200,7 +216,8 @@
         }
         set.add(attr);
         if (translated && translated !== value && el.getAttribute(attr) === value) {
-          attrRecords.push({ el, attr, orig: value, trans: translated });
+          (el._ltAttrOrig || (el._ltAttrOrig = {}))[attr] = value;
+          (el._ltAttrTrans || (el._ltAttrTrans = {}))[attr] = translated;
           el.setAttribute(attr, showingOriginal ? value : translated);
         }
       }
@@ -255,13 +272,13 @@
       if (node._ltSkip) continue;
       const v = node.nodeValue;
       if (!v || !v.trim()) continue;
-      if (translatedVals.get(node) === v) continue;            // our own write
+      if (node._ltTrans === v) continue;                       // our own write
       if (!/\p{L}/u.test(v) || CCY_ONLY.test(v)) continue;     // nothing to translate
       if (LuxeWalker.shouldSkipEl(node.parentElement)) continue;
       // Only a true revert (back to the source we last translated from) counts
       // toward the cap; genuinely new content resets it, so recycled/virtualized
       // nodes keep translating instead of stalling after 3 edits.
-      const isRevert = originals.get(node) === v;
+      const isRevert = node._ltOrig === v;
       const c = isRevert ? (revertCount.get(node) || 0) : 0;
       if (isRevert && c >= 3) continue;
       revertCount.set(node, isRevert ? c + 1 : 0);
@@ -333,17 +350,22 @@
     // missed the grid while currency — which re-scans the whole body a moment
     // later — happened to catch it.)
     if (!observer) {
-      observer = LuxeWalker.observe(async (added, changed) => {
+      observer = LuxeWalker.observe((added, changed) => {
         if (!enabled) return;
-        if (translator) await processTranslate(added);
-        await processCurrency(added);
-        await processSizes(added);
-        // Translate text the site populated/reverted in place (skip while
-        // showing originals — we want source text then).
-        if (!showingOriginal) await translateChanged(changed);
-        // Newly annotated nodes default to visible; hide them if we're currently
-        // showing originals.
-        if (showingOriginal) setAnnotationsVisible(false);
+        // Hand the coalesced batch to the serial queue so it can't overlap a
+        // prior batch still in flight (the observer is sync; the work is async).
+        enqueue(async () => {
+          if (!enabled) return;
+          if (translator) await processTranslate(added);
+          await processCurrency(added);
+          await processSizes(added);
+          // Translate text the site populated/reverted in place (skip while
+          // showing originals — we want source text then).
+          if (!showingOriginal) await translateChanged(changed);
+          // Newly annotated nodes default to visible; hide them if we're currently
+          // showing originals.
+          if (showingOriginal) setAnnotationsVisible(false);
+        });
       });
     }
 
@@ -363,14 +385,30 @@
     for (const s of spans) s.style.display = visible ? '' : 'none';
   }
 
+  // Swap every translated text node / attribute between source and translation
+  // by re-walking the live DOM and reading the per-node expandos, rather than
+  // iterating a retained collection. Nodes the page has since removed simply
+  // aren't visited (and stay collectable); nothing is pinned for the page's life.
   function setShowOriginal(on) {
     showingOriginal = !!on;
-    for (const [node, orig] of originals) {
-      node.nodeValue = on ? orig : (translatedVals.get(node) ?? node.nodeValue);
-    }
-    for (const r of attrRecords) {
-      const want = on ? r.orig : r.trans;
-      if (r.el.getAttribute(r.attr) !== want) r.el.setAttribute(r.attr, want);
+    const root = document.body || document.documentElement;
+    if (root) {
+      const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = tw.nextNode())) {
+        if (n._ltTrans === undefined) continue;
+        const want = on ? n._ltOrig : n._ltTrans;
+        if (want !== undefined && n.nodeValue !== want) n.nodeValue = want;
+      }
+      for (const el of root.querySelectorAll('*')) {
+        const trans = el._ltAttrTrans;
+        if (!trans) continue;
+        const orig = el._ltAttrOrig || {};
+        for (const attr in trans) {
+          const want = on ? orig[attr] : trans[attr];
+          if (want !== undefined && el.getAttribute(attr) !== want) el.setAttribute(attr, want);
+        }
+      }
     }
     if (titleRecord) document.title = on ? titleRecord.orig : titleRecord.trans;
     setAnnotationsVisible(!on);
@@ -380,9 +418,10 @@
     (async () => {
       switch (msg.type) {
         case 'apply':
-          enabled = true;
           showingOriginal = false;
           await loadSettings();
+          // loadSettings() recomputes `enabled` from stored siteState; the popup
+          // only sends 'apply' after enabling this site, so force it on here.
           enabled = true;
           await run();
           sendResponse({ ok: true });

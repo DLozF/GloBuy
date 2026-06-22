@@ -1,11 +1,11 @@
 // Popup: reads/writes settings and drives the active tab's content script.
 const $ = (id) => document.getElementById(id);
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
 const LANGUAGES = [
   ['en', 'English'], ['ko', 'Korean'], ['ja', 'Japanese'], ['zh', 'Chinese'],
-  ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'],
-  ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
+  ['vi', 'Vietnamese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'],
+  ['it', 'Italian'], ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
 const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true };
@@ -37,6 +37,25 @@ function statusText(st) {
   return 'Ready.';
 }
 
+// Live status pushed from the content script (chrome.runtime sendMessage). The
+// model download in particular reports progress, which we surface as a percent.
+function liveStatusText(msg) {
+  switch (msg.state) {
+    case 'downloading': {
+      const pct = Math.max(0, Math.min(100, Math.round((Number(msg.extra) || 0) * 100)));
+      return `Downloading translation model… ${pct}%`;
+    }
+    case 'starting': return 'Translating…';
+    case 'done': return 'Translation complete.';
+    case 'needsgesture': return 'Click anywhere on the page to start translation.';
+    case 'unavailable': return 'On-device translator unavailable — update to Chrome 138+.';
+    case 'nolang': return 'Couldn’t detect the page language.';
+    case 'same': return 'Page is already in your language.';
+    case 'pairunavailable': return 'This language pair isn’t available on-device.';
+    default: return null;
+  }
+}
+
 async function init() {
   fillSelect($('lang'), LANGUAGES);
   fillSelect($('ccy'), CURRENCIES);
@@ -55,6 +74,13 @@ async function init() {
 
   const st = tab ? await send(tab.id, { type: 'getState' }) : null;
   $('status').textContent = statusText(st);
+
+  // Reflect live progress (model download %, translating, done) for this tab's host.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'status' || (msg.host && msg.host !== host)) return;
+    const t = liveStatusText(msg);
+    if (t) $('status').textContent = t;
+  });
 
   // --- wiring ---
   $('enable').addEventListener('change', async (e) => {

@@ -33,3 +33,25 @@ test('findSizes: multiple sizes in one string, non-overlapping', () => {
   const r = sizes().findSizes('240mm / EU 39');
   assert.deepEqual(r.map((s) => s.label), ['US 6', 'US 7']);
 });
+
+test('detectGender: women / men / ambiguous', () => {
+  const S = sizes();
+  assert.equal(S.detectGender("Women's Sneakers"), 'women');
+  assert.equal(S.detectGender('여성 스니커즈'), 'women');
+  assert.equal(S.detectGender("Men's Loafers"), 'men');
+  assert.equal(S.detectGender('남성 로퍼'), 'men');
+  assert.equal(S.detectGender('Sneakers'), null);            // no signal
+  assert.equal(S.detectGender("Women's & Men's"), null);     // both -> ambiguous
+  assert.equal(S.detectGender('woman'), 'women');            // "men" not matched inside "women"
+});
+
+test('findSizes: gender branches the scale and label', () => {
+  const S = sizes();
+  // EU 38: unisex US 6, women US 7.5, men US 5.
+  assert.equal(S.findSizes('EU 38')[0].label, 'US 6');
+  assert.equal(S.findSizes('EU 38', 'women')[0].label, 'US W 7.5');
+  assert.equal(S.findSizes('EU 38', 'men')[0].label, 'US M 5');
+  // 260mm: unisex US 8, women US 9.5, men US 8.
+  assert.equal(S.findSizes('260mm', 'women')[0].label, 'US W 9.5');
+  assert.equal(S.findSizes('260mm', 'men')[0].label, 'US M 8');
+});

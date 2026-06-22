@@ -1,11 +1,14 @@
 // Service worker: currency-rate fetching + caching.
 //
 // Runs in the background so rate requests aren't subject to page CORS and can
-// be shared/cached across tabs. Rates come from Frankfurter (free, no key).
+// be shared/cached across tabs. Frankfurter (free, no key) is the primary
+// source; open.er-api.com is a free/no-key fallback that covers currencies
+// Frankfurter omits — notably VND, which Frankfurter returns "not found" for.
 const RATE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const ENDPOINTS = [
   (from, to) => `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`,
-  (from, to) => `https://api.frankfurter.app/latest?base=${from}&symbols=${to}`
+  (from, to) => `https://api.frankfurter.app/latest?base=${from}&symbols=${to}`,
+  (from) => `https://open.er-api.com/v6/latest/${from}` // returns all rates; read .rates[to]
 ];
 
 async function fetchRate(from, to) {

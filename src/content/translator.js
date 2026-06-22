@@ -13,6 +13,8 @@
   // call and split the result back apart — see translateBatch.
   const BATCH_DELIM = String.fromCharCode(0xF8FF);
   const cache = new Map(); // "src->tgt" -> Promise<Translator>
+  // Developer logging, gated by the LUXE_DEBUG flag (off by default — see content.js).
+  const debug = (...args) => { if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args); };
   // Glossary -> sorted [{match,value}] entries, built once per glossary object
   // instead of rebuilt+resorted on every node.
   const glossEntriesCache = new WeakMap();
@@ -52,7 +54,7 @@
         return top.detectedLanguage || null;
       }
     } catch (e) {
-      console.warn('[Luxe] language detection failed', e);
+      debug('language detection failed', e);
     }
     return null;
   }
@@ -184,8 +186,11 @@
     if (parts.length !== pending.length) return perItem(); // delimiter misaligned
     for (let j = 0; j < pending.length; j++) {
       const p = pending[j];
-      if (memo) { if (memo.size >= 5000) memo.clear(); memo.set(p.prepared, parts[j]); }
-      results[p.idx] = restore(parts[j], p.map);
+      // Some models pad the delimiter with spaces ("A <delim> B"), so each split
+      // part can carry stray leading/trailing whitespace — trim it before restore.
+      const part = parts[j].trim();
+      if (memo) { if (memo.size >= 5000) memo.clear(); memo.set(p.prepared, part); }
+      results[p.idx] = restore(part, p.map);
     }
     return results;
   }

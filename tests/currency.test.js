@@ -71,3 +71,37 @@ test('inferSourceCurrency: null when nothing matches (keeps bare conversion off)
   const C = ccy({ location: { hostname: 'example.com' } });
   assert.equal(C.inferSourceCurrency('en'), null);
 });
+
+test('inferSourceCurrency: Vietnamese -> VND (language and .vn TLD)', () => {
+  assert.equal(ccy().inferSourceCurrency('vi'), 'VND');
+  assert.equal(ccy({ location: { hostname: 'shop.example.vn' } }).inferSourceCurrency('en'), 'VND');
+});
+
+test('findPrices: Vietnamese đ / ₫ with dot-thousands grouping', () => {
+  const C = ccy();
+  const a = C.findPrices('1.500.000đ', 'vi');
+  assert.equal(a[0].currency, 'VND');
+  assert.equal(a[0].amount, 1500000);
+  const b = C.findPrices('₫500.000', 'vi');
+  assert.equal(b[0].currency, 'VND');
+  assert.equal(b[0].amount, 500000);
+});
+
+test('findPrices: bare dot-grouped numbers convert only for VND locale', () => {
+  const C = ccy();
+  // VND-inferred site: bare "7.000" / "1.500.000" are prices.
+  const a = C.findPrices('7.000', 'vi', 'VND');
+  assert.equal(a.length, 1);
+  assert.equal(a[0].amount, 7000);
+  assert.equal(C.findPrices('1.500.000', 'vi', 'VND')[0].amount, 1500000);
+  // KRW-inferred site (comma-grouping): a dot-grouped number is NOT a bare price.
+  assert.equal(C.findPrices('1.500.000', 'ko', 'KRW').length, 0);
+});
+
+test('parseAmount via findPrices: dot-thousands and mixed EU grouping', () => {
+  const C = ccy();
+  assert.equal(C.findPrices('€2.350', 'en')[0].amount, 2350);      // was mis-parsed as 2.35
+  assert.equal(C.findPrices('€1.234,56', 'en')[0].amount, 1234.56); // EU decimal
+  assert.equal(C.findPrices('$1,234.56', 'en')[0].amount, 1234.56); // US decimal
+  assert.equal(C.findPrices('₩1,200,000', 'ko')[0].amount, 1200000); // unchanged
+});

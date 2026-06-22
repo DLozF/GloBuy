@@ -23,6 +23,18 @@ test('translateBatch: falls back to per-item when the delimiter is lost', async 
   assert.equal(calls, 4); // 1 failed batch + 3 per-item
 });
 
+test('translateBatch: trims parts when a model pads the delimiter with spaces', async () => {
+  let calls = 0;
+  // A translator that uppercases and surrounds the delimiter with spaces.
+  const tr = {
+    _ltCache: new Map(),
+    translate: async (s) => { calls++; return s.toUpperCase().split(DELIM).join(' ' + DELIM + ' '); }
+  };
+  const out = await T.translateBatch(tr, items('ab', 'cd', 'ef'), null);
+  assert.deepEqual(out, ['AB', 'CD', 'EF']); // stray padding trimmed off
+  assert.equal(calls, 1); // still one batched call, not a per-item fallback
+});
+
 test('translateBatch: cache hit avoids re-translating', async () => {
   let calls = 0;
   const tr = { _ltCache: new Map(), translate: async (s) => { calls++; return s.toUpperCase(); } };

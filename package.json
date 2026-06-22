@@ -2,8 +2,15 @@
   "name": "luxe-translate",
   "version": "0.1.0",
   "private": true,
-  "description": "Tests for the Luxe Translate extension's pure detection helpers (findPrices, findSizes, inferSourceCurrency). No build step or runtime dependencies.",
+  "description": "Tests for the Luxe Translate extension: pure detection helpers (findPrices, findSizes, inferSourceCurrency) plus jsdom DOM-output and retention tests. No build step or runtime dependencies; jsdom is dev-only.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --expose-gc --test",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.1"
   }
 }

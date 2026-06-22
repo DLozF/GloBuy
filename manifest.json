@@ -3,7 +3,7 @@
   "name": "Luxe Translate — Full-Page Translator & Currency Converter",
   "version": "0.1.0",
   "description": "Fully translates foreign luxury/resale sites (incl. scroll-loaded content) and converts prices to your currency, inline.",
-  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js"
