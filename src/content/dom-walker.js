@@ -55,11 +55,12 @@
   }
 
   // Elements that may carry user-visible text in attributes (the MVP only
-  // touched text nodes, so these stayed in the source language).
+  // touched text nodes, so these stayed in the source language). We deliberately
+  // do NOT touch meta[name=description]: it isn't shown on the page, and
+  // rewriting it would alter what the site reports to crawlers / share previews.
   const ATTR_SELECTOR =
     '[placeholder],[title],[alt],[aria-label],' +
-    'input[type="submit"],input[type="button"],input[type="reset"],' +
-    'meta[name="description" i]';
+    'input[type="submit"],input[type="button"],input[type="reset"]';
 
   function attrsFor(el) {
     const list = [];
@@ -69,9 +70,6 @@
     if (el.tagName === 'INPUT') {
       const t = (el.getAttribute('type') || '').toLowerCase();
       if (t === 'submit' || t === 'button' || t === 'reset') list.push('value');
-    }
-    if (el.tagName === 'META' && (el.getAttribute('name') || '').toLowerCase() === 'description') {
-      list.push('content');
     }
     return list;
   }
