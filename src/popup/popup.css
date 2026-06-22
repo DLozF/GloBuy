@@ -83,6 +83,13 @@ input:checked + .slider { background: var(--gold); }
 input:checked + .slider::before { transform: translateX(18px); }
 .switch.sm input:checked + .slider::before { transform: translateX(16px); }
 
+.hint {
+  margin: -4px 4px 8px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .status {
   margin: 10px 2px 0;
   font-size: 11px;
