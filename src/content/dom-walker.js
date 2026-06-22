@@ -110,28 +110,56 @@
   //  - `changed`: text nodes whose value was edited in place (characterData) —
   //               data-bound site frameworks revert our translations this way,
   //               and without watching characterData we'd never re-apply.
+  //
+  // Mutations are COALESCED: a chatty page (lazy grids, skeleton fills, framework
+  // re-renders) can deliver dozens of mutation records in a burst. Rather than run
+  // a heavy translate/convert pass per record, we accumulate them and fire one
+  // callback when the main thread next goes idle (requestIdleCallback), falling
+  // back to a ~100ms debounced setTimeout where idle callbacks aren't available.
   function observe(callback) {
+    let pendingAdded = [];
+    let pendingChanged = [];
+    const supportsIdle = typeof requestIdleCallback === 'function';
+    let timer = null;
+
+    function flush() {
+      timer = null;
+      if (!pendingAdded.length && !pendingChanged.length) return;
+      const added = pendingAdded;
+      const changed = pendingChanged;
+      pendingAdded = [];
+      pendingChanged = [];
+      callback(added, changed);
+    }
+
+    function schedule() {
+      if (supportsIdle) {
+        if (timer == null) timer = requestIdleCallback(flush, { timeout: 500 });
+      } else {
+        if (timer != null) clearTimeout(timer); // debounce: ride out the burst
+        timer = setTimeout(flush, 100);
+      }
+    }
+
     const obs = new MutationObserver((mutations) => {
-      const added = [];
-      const changed = [];
       for (const m of mutations) {
         if (m.type === 'characterData') {
           const n = m.target;
-          if (n && n.nodeType === Node.TEXT_NODE && !n._ltSkip) changed.push(n);
+          if (n && n.nodeType === Node.TEXT_NODE && !n._ltSkip) pendingChanged.push(n);
           continue;
         }
         for (const node of m.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
             if (node.classList && node.classList.contains('lt-ccy')) continue;
             if (node.hasAttribute && node.hasAttribute('data-lt-skip')) continue;
-            added.push(node);
+            pendingAdded.push(node);
           } else if (node.nodeType === Node.TEXT_NODE) {
             if (node._ltSkip) continue;
-            added.push(node);
+            pendingAdded.push(node);
           }
         }
       }
-      if (added.length || changed.length) callback(added, changed);
+      if (pendingAdded.length || pendingChanged.length) schedule();
     });
     obs.observe(document.documentElement || document.body, {
       childList: true,

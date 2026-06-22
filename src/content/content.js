@@ -19,6 +19,14 @@
   let tgtLang = 'en';
   let observer = null;
   let running = false;
+  // Serializes observer-triggered passes: each coalesced batch runs to completion
+  // before the next starts, so two passes can't interleave at their await points
+  // (double-translating a node, or racing currency annotation against translation).
+  let obsChain = Promise.resolve();
+  function enqueue(task) {
+    obsChain = obsChain.then(task).catch(() => { /* best-effort; keep the queue alive */ });
+    return obsChain;
+  }
   let showingOriginal = false;
   let titleRecord = null;            // { orig, trans } for document.title
   let searchInstalled = false;
@@ -336,17 +344,22 @@
     // missed the grid while currency — which re-scans the whole body a moment
     // later — happened to catch it.)
     if (!observer) {
-      observer = LuxeWalker.observe(async (added, changed) => {
+      observer = LuxeWalker.observe((added, changed) => {
         if (!enabled) return;
-        if (translator) await processTranslate(added);
-        await processCurrency(added);
-        await processSizes(added);
-        // Translate text the site populated/reverted in place (skip while
-        // showing originals — we want source text then).
-        if (!showingOriginal) await translateChanged(changed);
-        // Newly annotated nodes default to visible; hide them if we're currently
-        // showing originals.
-        if (showingOriginal) setAnnotationsVisible(false);
+        // Hand the coalesced batch to the serial queue so it can't overlap a
+        // prior batch still in flight (the observer is sync; the work is async).
+        enqueue(async () => {
+          if (!enabled) return;
+          if (translator) await processTranslate(added);
+          await processCurrency(added);
+          await processSizes(added);
+          // Translate text the site populated/reverted in place (skip while
+          // showing originals — we want source text then).
+          if (!showingOriginal) await translateChanged(changed);
+          // Newly annotated nodes default to visible; hide them if we're currently
+          // showing originals.
+          if (showingOriginal) setAnnotationsVisible(false);
+        });
       });
     }
 
