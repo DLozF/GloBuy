@@ -13,6 +13,8 @@
   // call and split the result back apart — see translateBatch.
   const BATCH_DELIM = String.fromCharCode(0xF8FF);
   const cache = new Map(); // "src->tgt" -> Promise<Translator>
+  // Developer logging, gated by the LUXE_DEBUG flag (off by default — see content.js).
+  const debug = (...args) => { if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args); };
   // Glossary -> sorted [{match,value}] entries, built once per glossary object
   // instead of rebuilt+resorted on every node.
   const glossEntriesCache = new WeakMap();
@@ -52,7 +54,7 @@
         return top.detectedLanguage || null;
       }
     } catch (e) {
-      console.warn('[Luxe] language detection failed', e);
+      debug('language detection failed', e);
     }
     return null;
   }

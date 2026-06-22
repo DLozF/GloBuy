@@ -11,6 +11,12 @@
 
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
 
+  // Developer logging, off by default. Enable in the content-script console with
+  // `LUXE_DEBUG = true`, or persistently per-origin via `localStorage.LUXE_DEBUG = '1'`.
+  // The flag lives on globalThis so the sibling modules' loggers see it too.
+  try { if (localStorage.getItem('LUXE_DEBUG') === '1') globalThis.LUXE_DEBUG = true; } catch (e) { /* localStorage may be blocked */ }
+  const debug = (...args) => { if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args); };
+
   let settings = Object.assign({}, DEFAULTS);
   let enabled = false;
   let translator = null;
@@ -24,7 +30,7 @@
   // (double-translating a node, or racing currency annotation against translation).
   let obsChain = Promise.resolve();
   function enqueue(task) {
-    obsChain = obsChain.then(task).catch(() => { /* best-effort; keep the queue alive */ });
+    obsChain = obsChain.then(task).catch((e) => debug('observer pass failed', e)); // best-effort; keep the queue alive
     return obsChain;
   }
   let showingOriginal = false;
@@ -107,7 +113,7 @@
         notify('needsgesture');
         return false;
       }
-      console.warn('[Luxe] translator init failed', e);
+      debug('translator init failed', e);
       notify('pairunavailable');
       return false;
     }
