@@ -8,7 +8,8 @@ function loadModule(relPath, opts = {}) {
   const {
     location = { hostname: '' },
     document = { querySelector: () => null },
-    self = {}
+    self = {},
+    Node = {} // pass a real (jsdom) Node to exercise the DOM-walking paths
   } = opts;
   const code = fs.readFileSync(path.join(__dirname, '..', relPath), 'utf8');
   const factory = new Function(
@@ -16,7 +17,7 @@ function loadModule(relPath, opts = {}) {
     code + '\n;return globalThis;'
   );
   const g = {};
-  factory(g, self, location, document, {});
+  factory(g, self, location, document, Node);
   return g;
 }
 
