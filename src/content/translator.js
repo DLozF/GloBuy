@@ -184,8 +184,11 @@
     if (parts.length !== pending.length) return perItem(); // delimiter misaligned
     for (let j = 0; j < pending.length; j++) {
       const p = pending[j];
-      if (memo) { if (memo.size >= 5000) memo.clear(); memo.set(p.prepared, parts[j]); }
-      results[p.idx] = restore(parts[j], p.map);
+      // Some models pad the delimiter with spaces ("A <delim> B"), so each split
+      // part can carry stray leading/trailing whitespace — trim it before restore.
+      const part = parts[j].trim();
+      if (memo) { if (memo.size >= 5000) memo.clear(); memo.set(p.prepared, part); }
+      results[p.idx] = restore(part, p.map);
     }
     return results;
   }
