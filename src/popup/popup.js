@@ -1,11 +1,11 @@
 // Popup: reads/writes settings and drives the active tab's content script.
 const $ = (id) => document.getElementById(id);
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
 const LANGUAGES = [
   ['en', 'English'], ['ko', 'Korean'], ['ja', 'Japanese'], ['zh', 'Chinese'],
-  ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'],
-  ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
+  ['vi', 'Vietnamese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'],
+  ['it', 'Italian'], ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
 const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true };

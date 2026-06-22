@@ -58,5 +58,22 @@ globalThis.LUXE_GLOSSARY = {
     "现货": "In Stock",
     "已售罄": "Sold Out",
     "专柜价": "Retail Price"
+  },
+  vi: {
+    "Chính hãng": "Authentic",
+    "Hàng mới": "Brand New",
+    "Mới 100%": "Brand New",
+    "Đã qua sử dụng": "Pre-owned",
+    "Hàng cũ": "Pre-owned",
+    "Hàng hiệu": "Designer",
+    "Phiên bản giới hạn": "Limited Edition",
+    "Miễn phí vận chuyển": "Free Shipping",
+    "Freeship": "Free Shipping",
+    "Còn hàng": "In Stock",
+    "Hết hàng": "Sold Out",
+    "Giá gốc": "Retail Price",
+    "Nguyên hộp": "Full Box",
+    "Bảo hành": "Warranty",
+    "Phụ kiện": "Accessories"
   }
 };
