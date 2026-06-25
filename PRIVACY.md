@@ -1,18 +1,43 @@
 # Privacy Policy — Luxe Translate
 
-_Last updated: 2026-06-22_
+_Last updated: 2026-06-24_
 
 Luxe Translate is built to do its job **without collecting, storing, or
-transmitting your personal data**. There is no backend server, no account, no
-analytics, no tracking, and no ads.
+transmitting your personal data**. In its **default mode** there is no backend
+server, no account, no analytics, no tracking, and no ads. An **optional Premium
+translation** mode (off by default) uses a cloud translation service — what it
+sends, and only when, is described below.
 
 ## What the extension does with your data
 
-### Page content stays on your device
-Translation runs entirely **on-device** using Chrome's built-in Translator and
-LanguageDetector (on-device AI) APIs. The text of the pages you visit — product
-names, descriptions, search queries you type — is translated locally in your
-browser and **is never sent to us or to any third party**.
+### Page content stays on your device (default mode)
+By default, translation runs entirely **on-device** using Chrome's built-in
+Translator and LanguageDetector (on-device AI) APIs. The text of the pages you
+visit — product names, descriptions, search queries you type — is translated
+locally in your browser and **is never sent to us or to any third party**.
+
+### Premium translation (opt-in — page text leaves your device)
+If you turn on **Premium translation** in the popup, the extension sends the page
+text selected for translation to our translation proxy, which forwards it to a
+third-party LLM translation provider (currently **DeepSeek**) to produce
+higher-quality translations. This mode is **off by default** and only does
+anything while you have explicitly enabled it.
+
+When Premium is on, each translation request sends:
+
+- the **text to be translated** (product names, descriptions, seller notes, and
+  the page title/attributes), batched;
+- the detected **source language** and your **target language**;
+- an **anonymous install identifier** (a random token generated in your browser)
+  used only to meter the free monthly quota — it is not tied to your identity;
+- **optionally**, if you choose to supply your own DeepSeek API key, that key, so
+  the proxy can bill your key instead of the shared quota.
+
+The proxy does not require an account and does not log page text for any purpose
+beyond fulfilling the translation request. **URLs you visit, browsing history,
+and identifiers beyond the anonymous quota token are not sent.** Currency and
+size conversion remain on-device regardless of this setting. You can turn Premium
+off at any time to return to fully on-device translation.
 
 ### Currency conversion sends only a currency pair
 To show converted prices, the extension needs exchange rates. It sends **only a
@@ -37,7 +62,10 @@ devices by Google. **It is never sent to the developer.**
 
 - We do **not** collect, sell, rent, or share any personal information.
 - We do **not** use analytics, telemetry, advertising, or fingerprinting.
-- We do **not** transmit the contents of the pages you browse anywhere.
+- We do **not** transmit the contents of the pages you browse anywhere **in the
+  default on-device mode**. Page text leaves your device **only** if you opt in to
+  Premium translation (see above) — sent to our proxy and the third-party LLM
+  provider — and only the text being translated.
 
 ## Permissions
 
