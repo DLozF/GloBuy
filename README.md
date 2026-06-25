@@ -35,9 +35,19 @@ It also goes beyond on-page text:
 
 ## Architecture
 
-- **No backend, $0 running cost.**
+- **Default tier: no backend, $0 running cost, fully on-device.**
 - **Translation:** Chrome's built-in **on-device Translator + LanguageDetector
   APIs** (Chrome 138+) — free, local, no API key.
+- **Optional Premium tier:** an opt-in toggle routes translation through a hosted
+  proxy (a Cloudflare Worker in `proxy/`) to an OpenAI-compatible LLM (currently
+  **DeepSeek**) for higher jargon quality — the engine is config-driven
+  (`LLM_BASE_URL`/`LLM_MODEL`). The proxy holds the API key and enforces a free
+  monthly quota;
+  the extension authenticates with an anonymous install token. Page text leaves
+  the device only while Premium is on — see [PRIVACY.md](./PRIVACY.md). Falls back
+  to on-device automatically when the quota is out or the proxy is unreachable.
+  *(`proxy/`, `src/content/translator.js` → `translateRemote`, `src/background.js`
+  → `premiumTranslate`)*
 - **Currency:** [Frankfurter](https://frankfurter.dev) API — free, no key — with
   `open.er-api.com` as a keyless fallback for currencies Frankfurter omits (e.g.
   VND). Fetched and cached (12h) in the service worker to avoid page CORS.
@@ -86,9 +96,13 @@ icons/                    16 / 48 / 128 px
 
 ## Roadmap
 
-- **Claude "Premium" tier:** swap the translation backend in `translator.js` for
-  best-in-class jargon quality, plus listing summaries and in-image OCR (adds a
-  small backend + API key).
+- **Premium tier (shipped):** opt-in OpenAI-compatible LLM backend (currently
+  **DeepSeek**) via a hosted proxy (`proxy/`) for best-in-class jargon quality,
+  with a free monthly quota, BYOK fallback, and automatic fall-back to on-device.
+  Swap providers via `LLM_BASE_URL`/`LLM_MODEL`. See **Architecture** above and
+  [PRIVACY.md](./PRIVACY.md).
+- Premium follow-ups: paid subscription (Stripe) for the proxy, plus listing
+  summaries and in-image OCR.
 - Custom glossary editor and per-site source-language override.
 
 ## Known limitations

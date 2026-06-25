@@ -195,12 +195,65 @@
     return results;
   }
 
+  // --- Premium backend (cloud LLM, via the service worker → hosted proxy) ---
+  //
+  // Same shape as the on-device path, but the work happens off-device: the
+  // glossary is applied server-side (so no PUA protection here), and the proxy
+  // returns a JSON array aligned 1:1 with the batch — no delimiter splitting.
+  // Per source→target memo so repeated labels (card grids) translate once.
+  const remoteCache = new Map(); // "src->tgt" -> Map(text -> translation)
+  function remoteMemo(src, tgt) {
+    const key = src + '->' + tgt;
+    let m = remoteCache.get(key);
+    if (!m) { m = new Map(); remoteCache.set(key, m); }
+    return m;
+  }
+
+  // `items` are { text } objects (price-literal protection is unused here). On
+  // success returns { ok: true, results } aligned to items (results[i] is the
+  // translation, or undefined). On any failure returns { ok: false, reason } so
+  // the orchestrator can fall back to on-device for the batch.
+  async function translateRemote(items, srcLang, tgtLang) {
+    const memo = remoteMemo(srcLang, tgtLang);
+    const results = new Array(items.length);
+    const need = [];            // unique texts to send
+    const idxsByText = new Map(); // text -> [item indexes]
+    for (let i = 0; i < items.length; i++) {
+      const text = items[i] && items[i].text;
+      if (!text) continue;
+      if (memo.has(text)) { results[i] = memo.get(text); continue; }
+      if (idxsByText.has(text)) { idxsByText.get(text).push(i); }
+      else { idxsByText.set(text, [i]); need.push(text); }
+    }
+    if (!need.length) return { ok: true, results };
+
+    let resp;
+    try {
+      resp = await chrome.runtime.sendMessage({ type: 'premiumTranslate', srcLang, tgtLang, texts: need });
+    } catch (e) { return { ok: false, reason: 'error' }; }
+
+    if (!resp || resp.fallback || resp.error ||
+        !Array.isArray(resp.translations) || resp.translations.length !== need.length) {
+      const reason = (resp && resp.error === 'quota_exceeded') ? 'quota' : 'error';
+      return { ok: false, reason };
+    }
+    for (let j = 0; j < need.length; j++) {
+      const text = need[j];
+      const tr = resp.translations[j];
+      if (memo.size >= 5000) memo.clear();
+      memo.set(text, tr);
+      for (const idx of idxsByText.get(text)) results[idx] = tr;
+    }
+    return { ok: true, results, remaining: resp.remaining, pro: resp.pro };
+  }
+
   globalThis.LuxeTranslator = {
     apiAvailable,
     detectorAvailable,
     detectLanguage,
     getTranslator,
     translateText,
-    translateBatch
+    translateBatch,
+    translateRemote
   };
 })();

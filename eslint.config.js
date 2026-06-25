@@ -16,7 +16,7 @@ const luxeGlobals = {
 };
 
 module.exports = [
-  { ignores: ['node_modules/**'] },
+  { ignores: ['**/node_modules/**', '**/.wrangler/**'] },
   js.configs.recommended,
   {
     // Browser content scripts + background service worker.
@@ -40,6 +40,31 @@ module.exports = [
       // The detection regexes intentionally include non-ASCII whitespace
       // (NBSP, ideographic/fullwidth space) that these sites use in prices.
       'no-irregular-whitespace': ['error', { skipRegExps: true, skipStrings: true, skipComments: true }]
+    }
+  },
+  {
+    // Cloudflare Worker proxy source (ESM, Workers runtime globals).
+    files: ['proxy/src/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.serviceworker, ...globals.browser }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      'no-empty': ['warn', { allowEmptyCatch: true }]
+    }
+  },
+  {
+    // Proxy unit tests (ESM, node:test).
+    files: ['proxy/test/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }]
     }
   },
   {

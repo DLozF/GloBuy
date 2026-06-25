@@ -8,7 +8,7 @@ const LANGUAGES = [
   ['it', 'Italian'], ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
-const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true };
+const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true, premiumEnabled: false };
 
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -47,6 +47,13 @@ function liveStatusText(msg) {
     }
     case 'starting': return 'Translating…';
     case 'done': return 'Translation complete.';
+    case 'premium': {
+      if (msg.extra == null) return 'Premium translation active.';
+      const k = Math.max(0, Math.round(Number(msg.extra) / 1000));
+      return `Premium active — ~${k}K tokens left this month.`;
+    }
+    case 'quotafallback': return 'Premium quota reached — using on-device translation.';
+    case 'premiumerror': return 'Premium unavailable — using on-device translation.';
     case 'needsgesture': return 'Click anywhere on the page to start translation.';
     case 'unavailable': return 'On-device translator unavailable — update to Chrome 138+.';
     case 'nolang': return 'Couldn’t detect the page language.';
@@ -66,6 +73,10 @@ async function init() {
   $('ccy').value = s.targetCurrency;
   $('gloss').checked = s.glossaryEnabled;
   $('size').checked = s.sizeEnabled;
+  $('premium').checked = s.premiumEnabled;
+
+  const { userKey = '' } = await chrome.storage.local.get('userKey');
+  $('apikey').value = userKey;
 
   const tab = await activeTab();
   const host = hostOf(tab && tab.url);
@@ -74,6 +85,15 @@ async function init() {
 
   const st = tab ? await send(tab.id, { type: 'getState' }) : null;
   $('status').textContent = statusText(st);
+
+  // The popup is usually closed during translation, so show the last persisted
+  // quota rather than relying on a live message arriving while it's open.
+  if (s.premiumEnabled) {
+    const { premiumRemaining } = await chrome.storage.local.get('premiumRemaining');
+    $('status').textContent = typeof premiumRemaining === 'number'
+      ? `Premium active — ~${Math.max(0, Math.round(premiumRemaining / 1000))}K tokens left this month.`
+      : 'Premium translation enabled.';
+  }
 
   // Reflect live progress (model download %, translating, done) for this tab's host.
   chrome.runtime.onMessage.addListener((msg) => {
@@ -98,6 +118,7 @@ async function init() {
       targetCurrency: $('ccy').value,
       glossaryEnabled: $('gloss').checked,
       sizeEnabled: $('size').checked,
+      premiumEnabled: $('premium').checked,
       autoTranslate: true
     };
     await chrome.storage.sync.set({ settings });
@@ -117,6 +138,12 @@ async function init() {
   // Size conversion adds inline annotations, so reload to apply/remove them on
   // already-rendered content (matches the currency toggle's behavior).
   $('size').addEventListener('change', saveAndReload);
+  // Switching the translation backend needs a clean re-pass, like changing target.
+  $('premium').addEventListener('change', saveAndReload);
+  // BYOK key is read by the service worker on the next batch — no reload needed.
+  $('apikey').addEventListener('change', async (e) => {
+    await chrome.storage.local.set({ userKey: e.target.value.trim() });
+  });
   $('gloss').addEventListener('change', saveSettings);
   $('orig').addEventListener('change', async (e) => {
     await send(tab.id, { type: 'showOriginal', value: e.target.checked });
