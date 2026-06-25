@@ -24,6 +24,15 @@
   let usePremium = false;            // route node/attr/title text through the cloud LLM
   let fallbackTranslator = null;     // on-device, lazily created when a premium batch falls back
   let premiumNotified = false;       // surface "using on-device" only once per run
+
+  // Quota exhaustion is permanent for the session — stop hitting the proxy.
+  function handlePremiumFailure(reason) {
+    if (!premiumNotified) {
+      notify(reason === 'quota' ? 'quotafallback' : 'premiumerror');
+      premiumNotified = true;
+    }
+    if (reason === 'quota') usePremium = false;
+  }
   let reverseTranslator = null;      // target -> source, for search queries
   let srcLang = null;
   let tgtLang = 'en';
@@ -219,9 +228,7 @@
           outs = r.results;
           notify('premium', r.remaining);
         } else {
-          // Quota out or upstream/network error: fall back to on-device for the
-          // rest of this pass (surfaced once in the status line).
-          if (!premiumNotified) { notify(r.reason === 'quota' ? 'quotafallback' : 'premiumerror'); premiumNotified = true; }
+          handlePremiumFailure(r.reason);
           if (!(await ensureFallbackTranslator())) continue;
           try { outs = await LuxeTranslator.translateBatch(fallbackTranslator, items, gloss); }
           catch (e) { continue; }
@@ -269,7 +276,7 @@
         for (let i = 0; i < targets.length; i++) applyAttr(targets[i].el, targets[i].attr, targets[i].value, r.results[i]);
         return;
       }
-      if (!premiumNotified) { notify(r.reason === 'quota' ? 'quotafallback' : 'premiumerror'); premiumNotified = true; }
+      handlePremiumFailure(r.reason);
       if (!(await ensureFallbackTranslator())) return;
       return translateAttrsOnDevice(targets, fallbackTranslator);
     }
@@ -305,10 +312,13 @@
     if (usePremium) {
       const r = await LuxeTranslator.translateRemote([{ text: t }], srcLang, tgtLang);
       if (r.ok) translated = r.results[0];
-      else if (await ensureFallbackTranslator()) {
-        try { translated = await LuxeTranslator.translateText(fallbackTranslator, t, glossFor(), null); }
-        catch (e) { return; }
-      } else return;
+      else {
+        handlePremiumFailure(r.reason);
+        if (await ensureFallbackTranslator()) {
+          try { translated = await LuxeTranslator.translateText(fallbackTranslator, t, glossFor(), null); }
+          catch (e) { return; }
+        } else return;
+      }
     } else {
       try {
         translated = await LuxeTranslator.translateText(translator, t, glossFor(), null);
@@ -371,8 +381,9 @@
 
   // Reverse translator (target -> source) for search-query translation.
   async function ensureReverseTranslator() {
-    if (reverseTranslator) return true;
     if (!srcLang || srcLang === tgtLang) return false;
+    if (reverseTranslator) return true;
+    if (settings.premiumEnabled && usePremium) return true;
     try {
       reverseTranslator = await LuxeTranslator.getTranslator(tgtLang, srcLang);
       return true;
@@ -382,7 +393,19 @@
   }
 
   async function translateQuery(text) {
-    if (!reverseTranslator) return text;
+    if (settings.premiumEnabled && usePremium) {
+      const r = await LuxeTranslator.translateRemote([{ text }], tgtLang, srcLang);
+      if (r.ok && r.results[0]) return r.results[0];
+      handlePremiumFailure(r.reason);
+    }
+    if (!reverseTranslator) {
+      if (!srcLang || srcLang === tgtLang) return text;
+      try {
+        reverseTranslator = await LuxeTranslator.getTranslator(tgtLang, srcLang);
+      } catch (e) {
+        return text;
+      }
+    }
     // Keep ALL-CAPS tokens (likely brand names — GUCCI, CHANEL, LV) verbatim
     // rather than transliterating them into something the catalog won't match.
     const brands = text.match(/\b[A-Z][A-Z0-9]{1,}\b/g);
@@ -395,18 +418,19 @@
 
   async function setupSearch() {
     if (searchInstalled || !globalThis.LuxeSearch) return;
+    if (!srcLang || srcLang === tgtLang) return;
     if (!(await ensureReverseTranslator())) return;
     LuxeSearch.install({ translateQuery });
     searchInstalled = true;
   }
 
-  async function processCurrency(roots) {
-    await LuxeCurrency.annotate(roots, {
+  async function processCurrency(roots, extra) {
+    await LuxeCurrency.annotate(roots, Object.assign({
       fromHint: srcLang || langBase(settings.targetLanguage),
       target: settings.targetCurrency,
       seen: seenCcy,
       convert: (from, to) => chrome.runtime.sendMessage({ type: 'convert', from, to })
-    });
+    }, extra));
   }
 
   // Translation passes that need a ready `translator`. Shared by run() and the
@@ -419,11 +443,29 @@
     await setupSearch();
   }
 
+  // Warm the source->target FX rate as early as possible (before the slow
+  // translation pass) so the later currency annotation doesn't block on a fetch.
+  // inferSourceCurrency resolves from TLD / og:locale even before language
+  // detection, covering the common resale TLDs (.kr/.jp/.cn/.vn). Fire-and-forget;
+  // the service worker caches it so processCurrency hits a warm cache.
+  function warmRate() {
+    try {
+      if (!globalThis.LuxeCurrency) return;
+      const from = LuxeCurrency.inferSourceCurrency(srcLang);
+      const to = (settings.targetCurrency || 'USD').toUpperCase();
+      if (from && from !== to) {
+        chrome.runtime.sendMessage({ type: 'convert', from, to }, () => { void chrome.runtime.lastError; });
+      }
+    } catch (e) { /* best-effort */ }
+  }
+
   async function run() {
     if (running) return;
     running = true;
     notify('starting');
+    warmRate();                       // kick off the FX fetch (TLD-based) up front
     const ok = await ensureTranslator();
+    warmRate();                       // again now that srcLang is known (language-based)
 
     // Start the observer BEFORE the initial passes. These sites lazy-render the
     // product grid right after load; if it appears during our first pass it must
@@ -437,9 +479,10 @@
         // prior batch still in flight (the observer is sync; the work is async).
         enqueue(async () => {
           if (!enabled) return;
+          await processCurrency(added, { pureOnly: true }); // standalone prices first
           if (translator) await processTranslate(added);
-          await processCurrency(added);
           await processSizes(added);
+          await processCurrency(added);
           // Translate text the site populated/reverted in place (skip while
           // showing originals — we want source text then).
           if (!showingOriginal) await translateChanged(changed);
@@ -451,9 +494,12 @@
     }
 
     const roots = [document.body].filter(Boolean);
+    // Standalone prices first — convert them before the (possibly slow) translation
+    // pass so the most important info shows immediately; mixed nodes follow below.
+    await processCurrency(roots, { pureOnly: true });
     if (ok) await runTranslatePasses();
-    await processCurrency(roots); // currency runs even if translation is unavailable
-    await processSizes(roots);    // sizes run even if translation is unavailable
+    await processSizes(roots);    // sizes before currency — currency marks _ltSkip
+    await processCurrency(roots); // full pass: mixed nodes (+ any pure ones that failed)
     notify('done');
     running = false;
   }

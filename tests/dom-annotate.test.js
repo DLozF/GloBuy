@@ -59,6 +59,74 @@ test('currency.annotate: no span when the rate is unavailable', async () => {
   assert.equal(div.textContent, '₩1,200,000');
 });
 
+test('currency.annotate pureOnly: converts standalone prices, defers mixed nodes', async () => {
+  const win = jsdomWindow();
+  const doc = win.document;
+  const C = currency(win);
+  const pure = doc.createElement('div');
+  pure.textContent = '₩1,200,000';     // standalone — convert in the early pass
+  const mixed = doc.createElement('div');
+  mixed.textContent = '가격 ₩850,000';  // has a word — leave for the full pass
+  doc.body.appendChild(pure);
+  doc.body.appendChild(mixed);
+
+  const seen = new WeakSet();
+  const opts = { fromHint: 'ko', target: 'USD', seen, convert: async () => ({ rate: 0.000725 }) };
+
+  await C.annotate([pure, mixed], Object.assign({ pureOnly: true }, opts));
+  assert.ok(pure.querySelector('span.lt-ccy'), 'standalone price converted early');
+  assert.equal(mixed.querySelector('span.lt-ccy'), null, 'mixed node deferred');
+
+  await C.annotate([pure, mixed], opts); // full pass handles the mixed node
+  assert.ok(mixed.querySelector('span.lt-ccy'), 'mixed node converted on full pass');
+});
+
+test('currency.annotate: retries when the first rate fetch fails', async () => {
+  const win = jsdomWindow();
+  const doc = win.document;
+  const C = currency(win);
+  const div = doc.createElement('div');
+  div.textContent = '₩1,200,000';
+  doc.body.appendChild(div);
+
+  let calls = 0;
+  const seen = new WeakSet();
+  const convert = async () => {
+    calls++;
+    return calls === 1 ? { rate: null } : { rate: 0.000725 };
+  };
+
+  await C.annotate([div], { fromHint: 'ko', target: 'USD', seen, convert });
+  assert.equal(div.querySelector('span.lt-ccy'), null);
+
+  await C.annotate([div], { fromHint: 'ko', target: 'USD', seen, convert });
+  assert.ok(div.querySelector('span.lt-ccy'));
+  assert.equal(calls, 2);
+});
+
+test('sizes then currency: both annotate when a node has a size and a price', async () => {
+  const win = jsdomWindow();
+  const doc = win.document;
+  const S = sizes(win);
+  const C = currency(win);
+  const div = doc.createElement('div');
+  div.textContent = '사이즈 260mm · ₩850,000';
+  doc.body.appendChild(div);
+
+  const seenSize = new WeakSet();
+  const seenCcy = new WeakSet();
+  await S.annotate([div], { seen: seenSize });
+  await C.annotate([div], {
+    fromHint: 'ko',
+    target: 'USD',
+    seen: seenCcy,
+    convert: async () => ({ rate: 0.000725 })
+  });
+
+  assert.ok(div.querySelector('span.lt-size'), 'size span inserted');
+  assert.ok(div.querySelector('span.lt-ccy'), 'currency span inserted');
+});
+
 test('sizes.annotate: appends a US size span with the approximate tooltip', async () => {
   const win = jsdomWindow();
   const doc = win.document;

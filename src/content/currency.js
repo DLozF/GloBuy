@@ -156,6 +156,18 @@
     return out;
   }
 
+  // A node is "pure price" when its text has no letters outside the detected
+  // price spans — i.e. nothing to translate. Those can be converted *before* the
+  // translation pass (no surrounding words to mangle), so the prominent price
+  // shows its conversion immediately instead of waiting for translation.
+  function isPurePrice(text, prices) {
+    let rest = '';
+    let cursor = 0;
+    for (const p of prices) { rest += text.slice(cursor, p.start); cursor = p.end; }
+    rest += text.slice(cursor);
+    return !/\p{L}/u.test(rest);
+  }
+
   function format(amount, ccy) {
     const sym = DISPLAY_SYMBOL[ccy] || '';
     const digits = NO_DECIMALS.has(ccy) ? 0 : 2;
@@ -192,16 +204,21 @@
   // KRW->USD is fetched once and reused for every price, instead of a
   // service-worker round-trip per price. Target-currency changes reload the page
   // (fresh content script -> fresh cache), so this can't serve a stale target.
-  const _rateCache = new Map(); // "FROM>TGT" -> rate number | null
+  const _rateCache = new Map(); // "FROM>TGT" -> rate number (failed fetches are not cached)
 
   // opts: { fromHint, target, seen (WeakSet), convert(from,to)->Promise<{rate}> }
   async function annotate(roots, opts) {
     const { fromHint, seen, convert } = opts;
     const tgt = (opts.target || 'USD').toUpperCase();
+    // pureOnly: handle only standalone-price nodes (no surrounding translatable
+    // text). Used for the early pass that runs before translation.
+    const pureOnly = !!opts.pureOnly;
     const inferred = inferSourceCurrency(fromHint);
     const nodes = gatherNodes(roots, seen);
 
-    // Pass 1: detect prices, mark nodes handled, collect currencies still needed.
+    // Pass 1: detect prices and collect currencies still needed. Nodes are marked
+    // seen only after a successful annotation (pass 2) so a failed rate fetch
+    // can be retried on the next observer pass.
     const priced = [];
     const need = new Set();
     for (const node of nodes) {
@@ -209,7 +226,7 @@
       const text = node.nodeValue;
       const prices = findPrices(text, fromHint, inferred);
       if (!prices.length) continue;
-      seen.add(node);
+      if (pureOnly && !isPurePrice(text, prices)) continue;
       priced.push({ node, text, prices });
       for (const p of prices) {
         if (p.currency !== tgt && !_rateCache.has(p.currency + '>' + tgt)) need.add(p.currency);
@@ -222,8 +239,8 @@
       const key = from + '>' + tgt;
       try {
         const res = await convert(from, tgt);
-        _rateCache.set(key, res && typeof res.rate === 'number' ? res.rate : null);
-      } catch (e) { _rateCache.set(key, null); }
+        if (res && typeof res.rate === 'number') _rateCache.set(key, res.rate);
+      } catch (e) { /* leave uncached so the next pass retries */ }
     }));
 
     // Pass 2: build annotations synchronously from the cached rates.

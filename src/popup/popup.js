@@ -144,7 +144,8 @@ async function init() {
   $('apikey').addEventListener('change', async (e) => {
     await chrome.storage.local.set({ userKey: e.target.value.trim() });
   });
-  $('gloss').addEventListener('change', saveSettings);
+  // Glossary is applied at translate time — reload so existing text re-translates.
+  $('gloss').addEventListener('change', saveAndReload);
   $('orig').addEventListener('change', async (e) => {
     await send(tab.id, { type: 'showOriginal', value: e.target.checked });
   });

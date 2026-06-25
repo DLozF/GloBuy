@@ -11,19 +11,47 @@ const ENDPOINTS = [
   (from) => `https://open.er-api.com/v6/latest/${from}` // returns all rates; read .rates[to]
 ];
 
+const FETCH_TIMEOUT_MS = 6000;
+
+function fetchJson(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  return fetch(url, { signal: ctrl.signal })
+    .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+    .finally(() => clearTimeout(timer));
+}
+
+// Race all endpoints; the fastest one to return a usable rate wins. A slow or
+// dead endpoint can't stall the others (Promise.any), and each is time-bounded
+// so the chain never hangs on a wedged source.
 async function fetchRate(from, to) {
-  for (const build of ENDPOINTS) {
-    try {
-      const res = await fetch(build(from, to));
-      if (!res.ok) continue;
-      const data = await res.json();
-      const rate = data && data.rates && data.rates[to];
-      if (typeof rate === 'number') return rate;
-    } catch (e) {
-      // try next endpoint
-    }
+  const attempts = ENDPOINTS.map(async (build) => {
+    const data = await fetchJson(build(from, to));
+    const rate = data && data.rates && data.rates[to];
+    if (typeof rate !== 'number') throw new Error('no rate for ' + to);
+    return rate;
+  });
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    return null; // every endpoint failed
   }
-  return null;
+}
+
+const inflight = new Map(); // key -> Promise<rate|null>
+
+// Coalesce concurrent fetches for the same pair (e.g. the early warm-up and the
+// first real lookup) into a single network request.
+function refreshRate(key, from, to) {
+  const existing = inflight.get(key);
+  if (existing) return existing;
+  const p = (async () => {
+    const rate = await fetchRate(from, to);
+    if (rate != null) await chrome.storage.local.set({ [key]: { rate, ts: Date.now() } });
+    return rate;
+  })().finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
 }
 
 async function getRate(from, to) {
@@ -34,13 +62,14 @@ async function getRate(from, to) {
 
   const key = `rate:${from}:${to}`;
   const cached = (await chrome.storage.local.get(key))[key];
-  if (cached && Date.now() - cached.ts < RATE_TTL_MS) return cached.rate;
-
-  const rate = await fetchRate(from, to);
-  if (rate != null) {
-    await chrome.storage.local.set({ [key]: { rate, ts: Date.now() } });
+  if (cached && typeof cached.rate === 'number') {
+    // Stale-while-revalidate: serve the cached rate immediately, and if it's past
+    // the TTL refresh in the background so the next lookup is fresh. FX barely
+    // moves intraday, so a slightly stale rate is fine and never blocks the page.
+    if (Date.now() - cached.ts >= RATE_TTL_MS) refreshRate(key, from, to).catch(() => {});
+    return cached.rate;
   }
-  return rate;
+  return refreshRate(key, from, to); // nothing cached — must fetch
 }
 
 // --- Premium translation (LLM, via the hosted proxy) ----------------------

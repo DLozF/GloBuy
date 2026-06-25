@@ -84,12 +84,12 @@
     if (scope.nodeType !== Node.ELEMENT_NODE && scope.nodeType !== Node.DOCUMENT_NODE) {
       return out;
     }
-    const candidates = [];
+    const candidates = new Set();
     if (scope.nodeType === Node.ELEMENT_NODE && scope.matches && scope.matches(ATTR_SELECTOR)) {
-      candidates.push(scope);
+      candidates.add(scope);
     }
     if (scope.querySelectorAll) {
-      for (const el of scope.querySelectorAll(ATTR_SELECTOR)) candidates.push(el);
+      for (const el of scope.querySelectorAll(ATTR_SELECTOR)) candidates.add(el);
     }
     for (const el of candidates) {
       if (shouldSkipEl(el)) continue;
