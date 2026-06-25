@@ -43,9 +43,59 @@ async function getRate(from, to) {
   return rate;
 }
 
+// --- Premium translation (LLM, via the hosted proxy) ----------------------
+//
+// The proxy holds the LLM API key and enforces a free per-install quota. The
+// extension authenticates with an anonymous install token only. A user-supplied
+// key (BYOK) is forwarded so the proxy can bill it and skip the free cap; the
+// provider key itself never lives in the extension.
+const DEFAULT_PROXY_URL = 'https://luxe-translate-proxy.zol1th.workers.dev/translate';
+
+async function getInstallToken() {
+  const { installToken } = await chrome.storage.local.get('installToken');
+  if (installToken) return installToken;
+  const t = (crypto.randomUUID && crypto.randomUUID()) ||
+    String(Date.now()) + Math.random().toString(16).slice(2);
+  await chrome.storage.local.set({ installToken: t });
+  return t;
+}
+
+// Returns { translations } on success, or { fallback: true, error } so the
+// content script reverts that batch to the on-device translator.
+async function premiumTranslate({ srcLang, tgtLang, texts }) {
+  if (!Array.isArray(texts) || !texts.length) return { translations: [] };
+  const { proxyUrl, userKey } = await chrome.storage.local.get(['proxyUrl', 'userKey']);
+  const token = await getInstallToken();
+  const body = { token, srcLang, tgtLang, texts };
+  if (userKey) body.userKey = userKey;
+  let res;
+  try {
+    res = await fetch(proxyUrl || DEFAULT_PROXY_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    return { fallback: true, error: 'network' };
+  }
+  if (res.status === 402) { chrome.storage.local.set({ premiumRemaining: 0 }); return { fallback: true, error: 'quota_exceeded' }; }
+  if (!res.ok) return { fallback: true, error: 'upstream' };
+  let data;
+  try { data = await res.json(); } catch (e) { return { fallback: true, error: 'parse' }; }
+  if (!Array.isArray(data.translations)) return { fallback: true, error: 'parse' };
+  // Persist for the popup, which is usually closed during translation passes and
+  // so never sees the live 'premium' status messages.
+  if (typeof data.remaining === 'number') chrome.storage.local.set({ premiumRemaining: data.remaining });
+  return { translations: data.translations, remaining: data.remaining, pro: data.pro };
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'convert') {
     getRate(msg.from, msg.to).then((rate) => sendResponse({ rate }));
+    return true; // async
+  }
+  if (msg && msg.type === 'premiumTranslate') {
+    premiumTranslate(msg).then(sendResponse);
     return true; // async
   }
   // 'status' messages are for any open popup; nothing to do here.

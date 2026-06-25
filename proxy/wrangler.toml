@@ -1,0 +1,25 @@
+name = "luxe-translate-proxy"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+# Non-secret config. Override per environment as needed.
+# LLM_BASE_URL: full OpenAI-compatible chat-completions endpoint URL.
+# LLM_MODEL: model id for that endpoint (set the exact "V4 Flash" id from DeepSeek's docs).
+# NOTE: api.deepseek.com is unreachable from some local dev networks (SNI-blocked),
+#   but a DEPLOYED Worker calls it from Cloudflare's edge, so end users are unaffected.
+#   To test locally on a blocking network use `wrangler deploy`, `wrangler dev --remote`, or a VPN.
+[vars]
+LLM_BASE_URL = "https://api.deepseek.com/chat/completions"
+LLM_MODEL = "deepseek-chat"
+FREE_TOKENS = "500000"
+
+# Quota + rate-limit state. Create the namespace, then paste its id here:
+#   wrangler kv namespace create QUOTA
+[[kv_namespaces]]
+binding = "QUOTA"
+id = "b8dc2ead48a94a718ed61936a228d8bc"
+
+# The Gemini API key is a SECRET — never put it in this file or the repo:
+#   wrangler secret put GEMINI_API_KEY
+# For local `wrangler dev`, put it in proxy/.dev.vars (gitignored):
+#   GEMINI_API_KEY = "your-rotated-key"

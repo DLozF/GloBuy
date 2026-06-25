@@ -6,7 +6,8 @@
     targetLanguage: (navigator.language || 'en').split('-')[0],
     targetCurrency: 'USD',
     glossaryEnabled: true,
-    sizeEnabled: true
+    sizeEnabled: true,
+    premiumEnabled: false
   };
 
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
@@ -20,6 +21,9 @@
   let settings = Object.assign({}, DEFAULTS);
   let enabled = false;
   let translator = null;
+  let usePremium = false;            // route node/attr/title text through the cloud LLM
+  let fallbackTranslator = null;     // on-device, lazily created when a premium batch falls back
+  let premiumNotified = false;       // surface "using on-device" only once per run
   let reverseTranslator = null;      // target -> source, for search queries
   let srcLang = null;
   let tgtLang = 'en';
@@ -95,10 +99,24 @@
   }
 
   async function ensureTranslator() {
-    if (!LuxeTranslator.apiAvailable()) { notify('unavailable'); return false; }
+    usePremium = false;
+    premiumNotified = false;
+    // Language detection (a separate, lightweight on-device API) runs for both
+    // tiers — premium needs srcLang to pick the right glossary and currency hint.
     if (!srcLang) srcLang = langBase(await LuxeTranslator.detectLanguage(detectionSample()));
     if (!srcLang || srcLang === 'und') { notify('nolang'); return false; }
     if (srcLang === tgtLang) { notify('same'); return false; }
+
+    if (settings.premiumEnabled) {
+      // The LLM call goes through the service worker; no on-device model to
+      // download. A truthy sentinel keeps the `if (!translator)` guards happy.
+      usePremium = true;
+      translator = { premium: true };
+      notify('premium');
+      return true;
+    }
+
+    if (!LuxeTranslator.apiAvailable()) { notify('unavailable'); return false; }
     try {
       translator = await LuxeTranslator.getTranslator(srcLang, tgtLang, (loaded) => notify('downloading', loaded));
       return true;
@@ -139,7 +157,22 @@
     window.addEventListener('keydown', handler, true);
   }
 
-  const CHUNK = 40; // nodes per batched translate() call
+  // Lazily create the on-device translator so a premium batch that fails (quota
+  // exhausted, network/upstream error) can still be translated. Returns false if
+  // on-device is unavailable (no built-in AI, or it needs a user gesture).
+  async function ensureFallbackTranslator() {
+    if (fallbackTranslator) return true;
+    if (!LuxeTranslator.apiAvailable() || !srcLang || srcLang === tgtLang) return false;
+    try {
+      fallbackTranslator = await LuxeTranslator.getTranslator(srcLang, tgtLang);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  const CHUNK = 40; // nodes per batched on-device translate() call
+  const REMOTE_CHUNK = 90; // larger batches for premium — network round-trips dominate
 
   function inViewport(node) {
     const el = node.parentElement;
@@ -171,18 +204,34 @@
     for (const n of pending) (inViewport(n) ? visible : rest).push(n);
     pending = visible.concat(rest);
 
-    for (let i = 0; i < pending.length; i += CHUNK) {
-      const live = pending.slice(i, i + CHUNK).filter((n) => !seenText.has(n) && !n._ltSkip);
+    const step = usePremium ? REMOTE_CHUNK : CHUNK;
+    for (let i = 0; i < pending.length; i += step) {
+      const live = pending.slice(i, i + step).filter((n) => !seenText.has(n) && !n._ltSkip);
       if (!live.length) continue;
       const items = live.map((node) => {
         const original = node.nodeValue;
         return { node, original, text: original, protectLiterals: priceLiteralsFor(original, inferred) };
       });
       let outs;
-      try {
-        outs = await LuxeTranslator.translateBatch(translator, items, gloss);
-      } catch (e) {
-        continue; // whole chunk failed; nodes stay unseen for a later retry
+      if (usePremium) {
+        const r = await LuxeTranslator.translateRemote(items, srcLang, tgtLang);
+        if (r.ok) {
+          outs = r.results;
+          notify('premium', r.remaining);
+        } else {
+          // Quota out or upstream/network error: fall back to on-device for the
+          // rest of this pass (surfaced once in the status line).
+          if (!premiumNotified) { notify(r.reason === 'quota' ? 'quotafallback' : 'premiumerror'); premiumNotified = true; }
+          if (!(await ensureFallbackTranslator())) continue;
+          try { outs = await LuxeTranslator.translateBatch(fallbackTranslator, items, gloss); }
+          catch (e) { continue; }
+        }
+      } else {
+        try {
+          outs = await LuxeTranslator.translateBatch(translator, items, gloss);
+        } catch (e) {
+          continue; // whole chunk failed; nodes stay unseen for a later retry
+        }
       }
       for (let k = 0; k < items.length; k++) {
         const { node, original } = items[k];
@@ -198,28 +247,51 @@
     }
   }
 
+  // Apply a translated attribute value to an element. Shared by both backends;
+  // an `undefined` translation (item failed) is left unmarked for a later retry.
+  function applyAttr(el, attr, value, translated) {
+    let set = seenAttr.get(el);
+    if (!set) { set = new Set(); seenAttr.set(el, set); }
+    if (set.has(attr) || translated === undefined) return;
+    set.add(attr);
+    if (translated && translated !== value && el.getAttribute(attr) === value) {
+      (el._ltAttrOrig || (el._ltAttrOrig = {}))[attr] = value;
+      (el._ltAttrTrans || (el._ltAttrTrans = {}))[attr] = translated;
+      el.setAttribute(attr, showingOriginal ? value : translated);
+    }
+  }
+
   async function translateAttrs(targets) {
+    if (!targets.length) return;
+    if (usePremium) {
+      const r = await LuxeTranslator.translateRemote(targets.map((t) => ({ text: t.value })), srcLang, tgtLang);
+      if (r.ok) {
+        for (let i = 0; i < targets.length; i++) applyAttr(targets[i].el, targets[i].attr, targets[i].value, r.results[i]);
+        return;
+      }
+      if (!premiumNotified) { notify(r.reason === 'quota' ? 'quotafallback' : 'premiumerror'); premiumNotified = true; }
+      if (!(await ensureFallbackTranslator())) return;
+      return translateAttrsOnDevice(targets, fallbackTranslator);
+    }
+    return translateAttrsOnDevice(targets, translator);
+  }
+
+  async function translateAttrsOnDevice(targets, tr) {
     const gloss = glossFor();
     const POOL = 6;
     let i = 0;
     async function worker() {
       while (i < targets.length) {
         const { el, attr, value } = targets[i++];
-        let set = seenAttr.get(el);
-        if (!set) { set = new Set(); seenAttr.set(el, set); }
-        if (set.has(attr)) continue;
+        const seen = seenAttr.get(el);
+        if (seen && seen.has(attr)) continue;
         let translated;
         try {
-          translated = await LuxeTranslator.translateText(translator, value, gloss, null);
+          translated = await LuxeTranslator.translateText(tr, value, gloss, null);
         } catch (e) {
           continue; // leave unmarked so a later pass can retry
         }
-        set.add(attr);
-        if (translated && translated !== value && el.getAttribute(attr) === value) {
-          (el._ltAttrOrig || (el._ltAttrOrig = {}))[attr] = value;
-          (el._ltAttrTrans || (el._ltAttrTrans = {}))[attr] = translated;
-          el.setAttribute(attr, showingOriginal ? value : translated);
-        }
+        applyAttr(el, attr, value, translated);
       }
     }
     await Promise.all(Array.from({ length: POOL }, worker));
@@ -230,10 +302,19 @@
     const t = document.title;
     if (!t || !t.trim() || !/\p{L}/u.test(t)) return;
     let translated;
-    try {
-      translated = await LuxeTranslator.translateText(translator, t, glossFor(), null);
-    } catch (e) {
-      return; // titleRecord stays null so the next run retries
+    if (usePremium) {
+      const r = await LuxeTranslator.translateRemote([{ text: t }], srcLang, tgtLang);
+      if (r.ok) translated = r.results[0];
+      else if (await ensureFallbackTranslator()) {
+        try { translated = await LuxeTranslator.translateText(fallbackTranslator, t, glossFor(), null); }
+        catch (e) { return; }
+      } else return;
+    } else {
+      try {
+        translated = await LuxeTranslator.translateText(translator, t, glossFor(), null);
+      } catch (e) {
+        return; // titleRecord stays null so the next run retries
+      }
     }
     if (translated && translated !== t) {
       titleRecord = { orig: t, trans: translated };
