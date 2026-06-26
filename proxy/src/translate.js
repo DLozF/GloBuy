@@ -12,13 +12,19 @@ import { GLOSSARY } from './glossary.js';
 export const DEFAULT_MODEL = 'deepseek-chat';
 export const DEFAULT_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 
-// Task framing + the per-language glossary.
+// Task framing + the per-language glossary. `srcLang` may be 'auto' (or empty)
+// when the extension couldn't detect the source on-device — older Chrome lacks
+// the LanguageDetector API — in which case the model detects it per string and
+// no source-specific glossary is available.
 export function buildSystemInstruction(srcLang, tgtLang, glossary = GLOSSARY) {
-  const gloss = glossary[srcLang] || null;
+  const auto = !srcLang || srcLang === 'auto' || srcLang === 'und';
+  const gloss = auto ? null : (glossary[srcLang] || null);
   const lines = [
     'You translate short UI text strings scraped from a foreign luxury / resale',
     'fashion shopping website into the target language.',
-    `Source language: ${srcLang}. Target language: ${tgtLang}.`,
+    auto
+      ? `Source language: detect it automatically (it may differ per string). Target language: ${tgtLang}.`
+      : `Source language: ${srcLang}. Target language: ${tgtLang}.`,
     '',
     'Rules:',
     '- Return ONLY the translation of each input string, nothing else.',

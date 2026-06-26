@@ -11,6 +11,14 @@ test('system instruction bakes in the source-language glossary', () => {
   assert.match(sys, /Source language: ko\. Target language: en\./);
 });
 
+test("'auto' source language tells the model to detect it and omits the glossary", () => {
+  const sys = buildSystemInstruction('auto', 'en');
+  assert.match(sys, /detect it automatically/);
+  assert.match(sys, /Target language: en\./);
+  assert.doesNotMatch(sys, /Source language: auto\./); // no literal "auto" code
+  assert.doesNotMatch(sys, /정품 → Authentic/);         // no source glossary when unknown
+});
+
 test('request body is OpenAI-shaped with JSON-object output', () => {
   const body = buildRequestBody(['a', 'b'], 'ko', 'en', undefined, 'deepseek-chat');
   assert.equal(body.model, 'deepseek-chat');
