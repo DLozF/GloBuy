@@ -50,7 +50,12 @@ It also goes beyond on-page text:
   → `premiumTranslate`)*
 - **Currency:** [Frankfurter](https://frankfurter.dev) API — free, no key — with
   `open.er-api.com` as a keyless fallback for currencies Frankfurter omits (e.g.
-  VND). Fetched and cached (12h) in the service worker to avoid page CORS.
+  VND). Fetched in the service worker (avoids page CORS): the rate endpoints are
+  **raced** with a timeout (fastest source wins), cached 12h and served
+  **stale-while-revalidate** so conversions never block on the network, and
+  concurrent lookups are coalesced. **Standalone prices convert before the
+  translation pass** (`pureOnly`), so the price-in-your-currency appears
+  immediately even while a slow Premium translation is still running.
 
 ```
 manifest.json
