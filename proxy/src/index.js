@@ -18,6 +18,18 @@ const QUOTA_TTL_SECONDS = 60 * 60 * 24 * 40; // ~40 days; rolls over monthly via
 function monthKey(d = new Date()) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
+
+// The extension mints its install token (see background.js getInstallToken) as
+// either a crypto.randomUUID() or a `${Date.now()}${random-hex}` fallback. The
+// token isn't a secret and can't be cryptographically verified server-side, but
+// validating its shape cheaply rejects empty/garbage tokens before they spend
+// from the shared free pool — raising the bar on the laziest abuse. BYOK callers
+// bill their own key, so this only gates the shared path.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FALLBACK_TOKEN_RE = /^\d{13,}[0-9a-f]{6,}$/i; // 13+ ms-epoch digits + hex tail
+export function isValidInstallToken(token) {
+  return typeof token === 'string' && (UUID_RE.test(token) || FALLBACK_TOKEN_RE.test(token));
+}
 function corsHeaders(origin) {
   return {
     'access-control-allow-origin': origin || '*',
@@ -55,6 +67,11 @@ export default {
     // BYOK: if the caller supplies their own provider key, bill it and skip both
     // the free quota and the shared key entirely.
     const byok = typeof userKey === 'string' && userKey.length > 0;
+
+    // Reject malformed install tokens before they can draw on the shared pool.
+    if (!byok && !isValidInstallToken(token)) {
+      return json({ error: 'bad_token' }, 400, cors);
+    }
 
     // Per-IP rate limit (best-effort — anonymous tokens are free to mint).
     if (env.QUOTA && !byok) {
