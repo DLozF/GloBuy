@@ -1,9 +1,9 @@
 {
   "name": "luxe-translate-proxy",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Cloudflare Worker that proxies premium translation batches to Google Gemini Flash. Holds the API key as a Worker secret, enforces a per-install free token quota, and bakes the luxury glossary into the system instruction. Pure translate.js logic is unit-tested with `node --test`.",
+  "description": "Cloudflare Worker that proxies premium translation batches to DeepSeek (an OpenAI-compatible chat-completions LLM). Holds the API key as a Worker secret, enforces a per-install free token quota, and bakes the luxury glossary into the system instruction. Pure translate.js logic is unit-tested with `node --test`.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

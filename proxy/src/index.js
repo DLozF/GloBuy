@@ -7,8 +7,8 @@
 //
 // Setup:
 //   wrangler kv namespace create QUOTA      # paste id into wrangler.toml
-//   wrangler secret put LLM_API_KEY         # the (rotated!) provider key
-//                                           # (GEMINI_API_KEY is still accepted as a fallback)
+//   wrangler secret put LLM_API_KEY         # the (rotated!) DeepSeek key
+//                                           # (DEEPSEEK_API_KEY is also accepted as a fallback)
 import { translateTexts, DEFAULT_MODEL, DEFAULT_ENDPOINT } from './translate.js';
 
 const FREE_TOKENS_DEFAULT = 500000; // ~50 pages/month per install token
@@ -79,7 +79,7 @@ export default {
     try {
       result = await translateTexts(texts, {
         srcLang, tgtLang,
-        apiKey: byok ? userKey : (env.LLM_API_KEY || env.GEMINI_API_KEY),
+        apiKey: byok ? userKey : (env.LLM_API_KEY || env.DEEPSEEK_API_KEY),
         model: env.LLM_MODEL || DEFAULT_MODEL,
         endpoint: env.LLM_BASE_URL || DEFAULT_ENDPOINT
       });
