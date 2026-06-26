@@ -35,6 +35,17 @@ async function send(tabId, message) {
   try { return await chrome.tabs.sendMessage(tabId, message); } catch (e) { return null; }
 }
 
+// The BYOK API-key row (and its hint) only make sense when Premium is on, so
+// their visibility follows the premium toggle. With the feature flag off they
+// stay hidden regardless (handled at init).
+function syncApiKeyRow() {
+  const show = PREMIUM_ENABLED && $('premium').checked;
+  for (const id of ['apikey-row', 'apikey-hint']) {
+    const el = $(id);
+    if (el) el.style.display = show ? '' : 'none';
+  }
+}
+
 function statusText(st) {
   if (!st) return 'Open a normal web page to use Luxe Translate.';
   if (!st.apiAvailable) return 'On-device translator unavailable — update to Chrome 138+.';
@@ -86,11 +97,14 @@ async function init() {
 
   // v1 ships on-device only: hide the premium toggle, its hint, and the BYOK
   // API-key row entirely so a reviewer sees only the on-device feature set.
+  // When the flag is on, the API-key row tracks the premium toggle instead.
   if (!PREMIUM_ENABLED) {
-    for (const id of ['premium-row', 'premium-hint', 'apikey-row']) {
+    for (const id of ['premium-row', 'premium-hint', 'apikey-row', 'apikey-hint']) {
       const el = $(id);
       if (el) el.style.display = 'none';
     }
+  } else {
+    syncApiKeyRow();
   }
 
   const tab = await activeTab();
@@ -154,8 +168,8 @@ async function init() {
   // already-rendered content (matches the currency toggle's behavior).
   $('size').addEventListener('change', saveAndReload);
   if (PREMIUM_ENABLED) {
-    // Switching the translation backend needs a clean re-pass, like changing target.
-    $('premium').addEventListener('change', saveAndReload);
+    // Show/hide the BYOK key row immediately, then re-pass like a target change.
+    $('premium').addEventListener('change', () => { syncApiKeyRow(); saveAndReload(); });
     // BYOK key is read by the service worker on the next batch — no reload needed.
     $('apikey').addEventListener('change', async (e) => {
       await chrome.storage.local.set({ userKey: e.target.value.trim() });
