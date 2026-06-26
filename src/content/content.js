@@ -10,6 +10,13 @@
     premiumEnabled: false
   };
 
+  // Premium (cloud) translation is feature-flagged OFF for the v1 on-device-only
+  // build. The premium code path below stays in source but is unreachable while
+  // this is false: it's the only place usePremium is set, so every `if (usePremium)`
+  // branch (translateNodes, translateAttrs, translateTitle, translateQuery) is
+  // dead and the on-device path is the only one that runs. Flip to true for v1.1.
+  const PREMIUM_ENABLED = false;
+
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
 
   // Developer logging, off by default. Enable in the content-script console with
@@ -116,7 +123,7 @@
     if (!srcLang || srcLang === 'und') { notify('nolang'); return false; }
     if (srcLang === tgtLang) { notify('same'); return false; }
 
-    if (settings.premiumEnabled) {
+    if (PREMIUM_ENABLED && settings.premiumEnabled) {
       // The LLM call goes through the service worker; no on-device model to
       // download. A truthy sentinel keeps the `if (!translator)` guards happy.
       usePremium = true;

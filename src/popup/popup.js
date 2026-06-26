@@ -1,6 +1,12 @@
 // Popup: reads/writes settings and drives the active tab's content script.
 const $ = (id) => document.getElementById(id);
 
+// Premium (cloud) translation is feature-flagged OFF for the v1 on-device-only
+// build. The proxy/premium code remains in the repo as a portfolio artifact but
+// the UI (toggle, API-key row, hint) and the premium code path stay dormant.
+// Flip to true to re-enable the opt-in cloud tier (planned for v1.1).
+const PREMIUM_ENABLED = false;
+
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
 const LANGUAGES = [
   ['en', 'English'], ['ko', 'Korean'], ['ja', 'Japanese'], ['zh', 'Chinese'],
@@ -73,10 +79,19 @@ async function init() {
   $('ccy').value = s.targetCurrency;
   $('gloss').checked = s.glossaryEnabled;
   $('size').checked = s.sizeEnabled;
-  $('premium').checked = s.premiumEnabled;
+  $('premium').checked = PREMIUM_ENABLED && s.premiumEnabled;
 
   const { userKey = '' } = await chrome.storage.local.get('userKey');
   $('apikey').value = userKey;
+
+  // v1 ships on-device only: hide the premium toggle, its hint, and the BYOK
+  // API-key row entirely so a reviewer sees only the on-device feature set.
+  if (!PREMIUM_ENABLED) {
+    for (const id of ['premium-row', 'premium-hint', 'apikey-row']) {
+      const el = $(id);
+      if (el) el.style.display = 'none';
+    }
+  }
 
   const tab = await activeTab();
   const host = hostOf(tab && tab.url);
@@ -88,7 +103,7 @@ async function init() {
 
   // The popup is usually closed during translation, so show the last persisted
   // quota rather than relying on a live message arriving while it's open.
-  if (s.premiumEnabled) {
+  if (PREMIUM_ENABLED && s.premiumEnabled) {
     const { premiumRemaining } = await chrome.storage.local.get('premiumRemaining');
     $('status').textContent = typeof premiumRemaining === 'number'
       ? `Premium active — ~${Math.max(0, Math.round(premiumRemaining / 1000))}K tokens left this month.`
@@ -118,7 +133,7 @@ async function init() {
       targetCurrency: $('ccy').value,
       glossaryEnabled: $('gloss').checked,
       sizeEnabled: $('size').checked,
-      premiumEnabled: $('premium').checked,
+      premiumEnabled: PREMIUM_ENABLED && $('premium').checked,
       autoTranslate: true
     };
     await chrome.storage.sync.set({ settings });
@@ -138,12 +153,14 @@ async function init() {
   // Size conversion adds inline annotations, so reload to apply/remove them on
   // already-rendered content (matches the currency toggle's behavior).
   $('size').addEventListener('change', saveAndReload);
-  // Switching the translation backend needs a clean re-pass, like changing target.
-  $('premium').addEventListener('change', saveAndReload);
-  // BYOK key is read by the service worker on the next batch — no reload needed.
-  $('apikey').addEventListener('change', async (e) => {
-    await chrome.storage.local.set({ userKey: e.target.value.trim() });
-  });
+  if (PREMIUM_ENABLED) {
+    // Switching the translation backend needs a clean re-pass, like changing target.
+    $('premium').addEventListener('change', saveAndReload);
+    // BYOK key is read by the service worker on the next batch — no reload needed.
+    $('apikey').addEventListener('change', async (e) => {
+      await chrome.storage.local.set({ userKey: e.target.value.trim() });
+    });
+  }
   // Glossary is applied at translate time — reload so existing text re-translates.
   $('gloss').addEventListener('change', saveAndReload);
   $('orig').addEventListener('change', async (e) => {
