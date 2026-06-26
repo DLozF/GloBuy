@@ -81,6 +81,19 @@ test('a misaligned batch is split in half and retried until it aligns', async ()
   assert.deepEqual(translations, ['A', 'B', 'C']);
 });
 
+test('split-batch token total includes the failed parent calls', async () => {
+  // Drop-first forces ['a','b','c'] to misalign and split, and the ['b','c']
+  // half to misalign and split again — 5 API calls total (2 of them failed
+  // parents). Every call reports 10 tokens, so real provider cost is 5*10 = 50.
+  // If a failed parent's tokens were dropped from the sum this would read 30.
+  const fetchImpl = echo((t) => (t.length > 1 ? t.slice(1) : t.map((s) => s.toUpperCase())), 10);
+  const { translations, tokens } = await translateTexts(['a', 'b', 'c'], {
+    srcLang: 'ko', tgtLang: 'en', apiKey: 'x', fetchImpl
+  });
+  assert.deepEqual(translations, ['A', 'B', 'C']);
+  assert.equal(tokens, 50);
+});
+
 test('a single item that still misaligns throws (caller falls back)', async () => {
   const fetchImpl = echo(() => []); // always returns zero items
   await assert.rejects(

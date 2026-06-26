@@ -147,6 +147,9 @@ async function alignedTranslate(texts, o) {
   const mid = Math.floor(texts.length / 2);
   const a = await alignedTranslate(texts.slice(0, mid), o);
   const b = await alignedTranslate(texts.slice(mid), o);
+  // Include this failed parent call's `tokens`: the provider already billed for
+  // the misaligned attempt, so quota must reflect parent + both retried halves,
+  // not just the halves. Dropping `tokens` here would undercount real cost.
   return { translations: a.translations.concat(b.translations), tokens: tokens + a.tokens + b.tokens };
 }
 
