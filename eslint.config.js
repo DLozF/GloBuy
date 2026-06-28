@@ -23,7 +23,7 @@ module.exports = [
     files: ['src/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'script',
+      sourceType: 'module',
       globals: {
         ...globals.browser,
         ...globals.serviceworker,
@@ -79,6 +79,18 @@ module.exports = [
       'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
       // Retention tests deliberately null out references to make nodes collectable.
       'no-useless-assignment': 'off'
+    }
+  },
+  {
+    // Node ESM test suite.
+    files: ['tests/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }]
     }
   }
 ];
