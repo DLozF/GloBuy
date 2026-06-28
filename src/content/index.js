@@ -4,7 +4,7 @@
 
 import { MSG } from '../shared/messages.js';
 import { getSettings, isHostEnabled } from '../shared/settings.js';
-import { start, stop, isRunning } from './pipeline.js';
+import { start, stop, isRunning, showOriginal } from './pipeline.js';
 
 const host = location.hostname;
 
@@ -17,6 +17,13 @@ async function maybeStart() {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
+      case 'getState':
+        sendResponse?.({
+          ok: true,
+          running: isRunning(),
+          apiAvailable: true, // if index.js loaded, API is available
+        });
+        return; // early return — don't fall through to generic sendResponse
       case MSG.ENABLE_SITE:
         await maybeStart();
         break;
@@ -26,6 +33,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case MSG.RERUN:
         stop();
         await maybeStart();
+        break;
+      case 'showOriginal':
+        showOriginal(message.value);
         break;
       default:
         break;

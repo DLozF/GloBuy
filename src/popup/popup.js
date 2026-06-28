@@ -14,7 +14,7 @@ const LANGUAGES = [
   ['it', 'Italian'], ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
-const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true, premiumEnabled: false };
+const DEFAULTS = { targetLang: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true, premiumEnabled: false };
 
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -47,35 +47,24 @@ function syncApiKeyRow() {
 }
 
 function statusText(st) {
-  if (!st) return 'Open a normal web page to use Globuy.';
-  if (!st.apiAvailable) return 'On-device translator unavailable — update to Chrome 138+.';
-  if (st.srcLang && st.srcLang !== st.tgtLang) return `Detected ${st.srcLang.toUpperCase()} → ${st.tgtLang.toUpperCase()}.`;
-  if (st.srcLang && st.srcLang === st.tgtLang) return 'Page is already in your language.';
-  return 'Ready.';
+  if (!st || !st.ok) return 'Open a normal web page to use Globuy.';
+  if (!st.running) return 'Ready.';
+  return 'Translating…';
 }
 
 // Live status pushed from the content script (chrome.runtime sendMessage). The
 // model download in particular reports progress, which we surface as a percent.
 function liveStatusText(msg) {
-  switch (msg.state) {
-    case 'downloading': {
-      const pct = Math.max(0, Math.min(100, Math.round((Number(msg.extra) || 0) * 100)));
+  switch (msg.kind) {
+    case ‘DOWNLOADING’: {
+      const pct = Math.max(0, Math.min(100, Math.round((Number(msg.progress) || 0) * 100)));
       return `Downloading translation model… ${pct}%`;
     }
-    case 'starting': return 'Translating…';
-    case 'done': return 'Translation complete.';
-    case 'premium': {
-      if (msg.extra == null) return 'Premium translation active.';
-      const k = Math.max(0, Math.round(Number(msg.extra) / 1000));
-      return `Premium active — ~${k}K tokens left this month.`;
-    }
-    case 'quotafallback': return 'Premium quota reached — using on-device translation.';
-    case 'premiumerror': return 'Premium unavailable — using on-device translation.';
-    case 'needsgesture': return 'Click anywhere on the page to start translation.';
-    case 'unavailable': return 'On-device translator unavailable — update to Chrome 138+.';
-    case 'nolang': return 'Couldn’t detect the page language.';
-    case 'same': return 'Page is already in your language.';
-    case 'pairunavailable': return 'This language pair isn’t available on-device.';
+    case ‘READY’: return ‘Translation complete.’;
+    case ‘IDLE’: return ‘Showing original.’;
+    case ‘UNSUPPORTED_API’: return ‘On-device translator unavailable — update to Chrome 138+.’;
+    case ‘UNSUPPORTED_LANG’: return `Language pair not available on-device.`;
+    case ‘NEEDS_ACTIVATION’: return ‘Click "Translate this page" button to begin.’;
     default: return null;
   }
 }
@@ -84,9 +73,9 @@ async function init() {
   fillSelect($('lang'), LANGUAGES);
   fillSelect($('ccy'), CURRENCIES);
 
-  const { settings = {}, siteState = {} } = await chrome.storage.sync.get(['settings', 'siteState']);
+  const { settings = {} } = await chrome.storage.sync.get('settings');
   const s = Object.assign({}, DEFAULTS, settings);
-  $('lang').value = s.targetLanguage;
+  $('lang').value = s.targetLang;
   $('ccy').value = s.targetCurrency;
   $('gloss').checked = s.glossaryEnabled;
   $('size').checked = s.sizeEnabled;
@@ -110,7 +99,8 @@ async function init() {
   const tab = await activeTab();
   const host = hostOf(tab && tab.url);
   $('host').textContent = host || '—';
-  $('enable').checked = host in siteState ? !!siteState[host] : s.autoTranslate;
+  const enabledHosts = s.enabledHosts || {};
+  $('enable').checked = host in enabledHosts ? !!enabledHosts[host] : s.autoTranslate;
 
   const st = tab ? await send(tab.id, { type: 'getState' }) : null;
   $('status').textContent = statusText(st);
@@ -126,7 +116,7 @@ async function init() {
 
   // Reflect live progress (model download %, translating, done) for this tab's host.
   chrome.runtime.onMessage.addListener((msg) => {
-    if (!msg || msg.type !== 'status' || (msg.host && msg.host !== host)) return;
+    if (!msg || msg.type !== 'STATUS' || (msg.host && msg.host !== host)) return;
     const t = liveStatusText(msg);
     if (t) $('status').textContent = t;
   });
@@ -134,16 +124,17 @@ async function init() {
   // --- wiring ---
   $('enable').addEventListener('change', async (e) => {
     const enabled = e.target.checked;
-    const cur = (await chrome.storage.sync.get('siteState')).siteState || {};
-    cur[host] = enabled;
-    await chrome.storage.sync.set({ siteState: cur });
-    await send(tab.id, { type: enabled ? 'apply' : 'disable' });
+    const { settings: storedSettings = {} } = await chrome.storage.sync.get('settings');
+    const hosts = storedSettings.enabledHosts || {};
+    if (enabled) hosts[host] = true; else delete hosts[host];
+    await chrome.storage.sync.set({ settings: { ...storedSettings, enabledHosts: hosts } });
+    await send(tab.id, { type: enabled ? 'ENABLE_SITE' : 'DISABLE_SITE' });
     $('status').textContent = enabled ? 'Translating…' : 'Showing original.';
   });
 
   async function saveSettings() {
     const settings = {
-      targetLanguage: $('lang').value,
+      targetLang: $('lang').value,
       targetCurrency: $('ccy').value,
       glossaryEnabled: $('gloss').checked,
       sizeEnabled: $('size').checked,

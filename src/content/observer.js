@@ -11,10 +11,14 @@ export function startObserver(onRoots) {
   if (observer) return;
   observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
+      if (m.type === 'characterData') {
+        pending.add(m.target);
+        continue;
+      }
       for (const node of m.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
           // Skip our own injected annotation spans.
-          if (node.classList?.contains('tr-price')) continue;
+          if (node.classList?.contains('lt-ccy') || node.classList?.contains('lt-size')) continue;
           pending.add(node);
         }
       }
@@ -23,7 +27,11 @@ export function startObserver(onRoots) {
       timer = setTimeout(flush, DEBOUNCE_MS);
     }
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.documentElement || document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
 
   function flush() {
     timer = null;

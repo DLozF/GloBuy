@@ -14,6 +14,9 @@ import { collectTextNodes, writeTranslation, revertAll } from './dom-walker.js';
 import { annotateRoot, removeAnnotations } from './currency.js';
 import { startObserver, stopObserver } from './observer.js';
 import { showActivationButton, hideActivationButton } from './activation.js';
+import '../data/glossary.js';
+import './sizes.js';
+import './search.js';
 
 const BATCH_SIZE = 50;
 
@@ -24,6 +27,8 @@ const state = {
   translator: null,
   rates: null,
   ctx: null,
+  seenText: null,   // WeakSet — tracks already-translated text nodes
+  seenSize: null,   // WeakSet — tracks already-annotated size nodes
 };
 
 function reportStatus(kind, extra = {}) {
@@ -46,7 +51,10 @@ async function getRates() {
 /** Translate the text nodes under a root in order-preserving batches. */
 async function translateRoot(root) {
   if (!state.translator || !state.sourceLang) return;
-  const nodes = collectTextNodes(root);
+  const gloss = state.settings?.glossaryEnabled
+    ? (globalThis.GLOBUY_GLOSSARY?.[state.sourceLang] || null)
+    : null;
+  const nodes = collectTextNodes(root, state.seenText);
   for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
     const slice = nodes.slice(i, i + BATCH_SIZE);
     const texts = slice.map((n) => n.nodeValue);
@@ -55,6 +63,7 @@ async function translateRoot(root) {
       state.sourceLang,
       state.settings.targetLang,
       state.translator,
+      gloss,
     );
     slice.forEach((node, j) => {
       if (node.isConnected && out[j] != null && out[j] !== node.nodeValue) {
@@ -64,10 +73,13 @@ async function translateRoot(root) {
   }
 }
 
-/** Translate (if applicable) and annotate prices under a root. */
+/** Translate (if applicable) and annotate prices and sizes under a root. */
 async function processRoot(root) {
   await translateRoot(root);
   if (state.ctx) annotateRoot(root, state.ctx);
+  if (state.settings?.sizeEnabled && globalThis.GlobuySizes) {
+    await globalThis.GlobuySizes.annotate([root], { seen: state.seenSize });
+  }
 }
 
 async function processRoots(roots) {
@@ -77,10 +89,24 @@ async function processRoots(roots) {
   }
 }
 
+/** Reverse-translate a search query from the target language back to the source. */
+async function reverseTranslateQuery(text) {
+  if (!state.translator || !state.sourceLang) return text;
+  try {
+    const { translator } = await ensureTranslator(state.settings.targetLang, state.sourceLang);
+    const [out] = await translateBatch([text], state.settings.targetLang, state.sourceLang, translator, null);
+    return out || text;
+  } catch {
+    return text;
+  }
+}
+
 export async function start(settings) {
   if (state.running) return;
   state.running = true;
   state.settings = settings;
+  state.seenText = new WeakSet();
+  state.seenSize = new WeakSet();
 
   // Currency rates can apply even when translation is unavailable.
   const table = await getRates();
@@ -131,6 +157,10 @@ export async function start(settings) {
     }
   }
 
+  if (globalThis.GlobuySearch && state.sourceLang && state.sourceLang !== target) {
+    globalThis.GlobuySearch.install({ translateQuery: (q) => reverseTranslateQuery(q) });
+  }
+
   await processRoot(document.body);
   if (state.translator || translationNeeded === false) reportStatus(STATUS_KIND.READY);
   startObserver(processRoots);
@@ -145,9 +175,21 @@ export function stop() {
   state.translator = null;
   state.sourceLang = null;
   state.ctx = null;
+  state.seenText = null;
+  state.seenSize = null;
   reportStatus(STATUS_KIND.IDLE);
 }
 
 export function isRunning() {
   return state.running;
+}
+
+export function showOriginal(show) {
+  if (show) {
+    revertAll();
+    removeAnnotations(document);
+  } else {
+    // Re-run to re-apply translations
+    if (state.running) processRoot(document.body).catch(() => {});
+  }
 }

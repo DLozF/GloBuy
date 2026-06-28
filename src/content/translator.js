@@ -1,5 +1,4 @@
 import { applyGlossary } from './glossary/index.js';
-import { getSettings } from '../shared/settings.js';
 
 // Private Use Area codepoints (U+E000+) are passed through untouched by
 // machine translation, so we use them as sentinels to protect glossary terms.
@@ -149,12 +148,8 @@ export async function translateText(translator, text, gloss, protectLiterals) {
 }
 
 // ESM Export version called by pipeline.js
-export async function translateBatch(texts, srcLang, tgtLang, translator) {
-  const settings = await getSettings();
-  const gloss = settings.glossaryEnabled
-    ? (globalThis.GLOBUY_GLOSSARY && globalThis.GLOBUY_GLOSSARY[srcLang]) || null
-    : null;
-
+// gloss is pre-computed by the caller (null to disable glossary protection)
+export async function translateBatch(texts, srcLang, tgtLang, translator, gloss) {
   const inferred = globalThis.GlobuyCurrency ? globalThis.GlobuyCurrency.inferSourceCurrency(srcLang) : null;
 
   const items = texts.map((text) => {
@@ -172,7 +167,7 @@ export async function translateBatch(texts, srcLang, tgtLang, translator) {
     const { text, protectLiterals } = items[i];
 
     // If glossary is enabled and there is a direct whole-node match, use it!
-    if (settings.glossaryEnabled) {
+    if (gloss != null) {
       const direct = applyGlossary(text, srcLang);
       if (direct) {
         results[i] = direct;

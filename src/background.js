@@ -54,6 +54,29 @@ function refreshRate(key, from, to) {
   return p;
 }
 
+// Full EUR-base rate table for currency annotation (pipeline GET_RATES request).
+let rateTableInflight = null;
+
+async function getRateTable() {
+  const KEY = 'rateTable';
+  const cached = (await chrome.storage.local.get(KEY))[KEY];
+  if (cached && cached.rates && (Date.now() - cached.ts < RATE_TTL_MS)) {
+    return { ok: true, table: { rates: cached.rates } };
+  }
+  if (rateTableInflight) return rateTableInflight;
+  rateTableInflight = (async () => {
+    try {
+      const data = await fetchJson('https://api.frankfurter.dev/v1/latest?base=EUR');
+      if (!data || !data.rates) throw new Error('no rates');
+      await chrome.storage.local.set({ [KEY]: { rates: data.rates, ts: Date.now() } });
+      return { ok: true, table: data };
+    } catch {
+      return { ok: false };
+    }
+  })().finally(() => { rateTableInflight = null; });
+  return rateTableInflight;
+}
+
 async function getRate(from, to) {
   from = String(from || '').toUpperCase();
   to = String(to || '').toUpperCase();
@@ -108,6 +131,7 @@ async function premiumTranslate({ srcLang, tgtLang, texts }) {
     return { fallback: true, error: 'network' };
   }
   if (res.status === 402) { chrome.storage.local.set({ premiumRemaining: 0 }); return { fallback: true, error: 'quota_exceeded' }; }
+  if (res.status === 429) return { fallback: true, error: 'rate_limited' };
   if (!res.ok) return { fallback: true, error: 'upstream' };
   let data;
   try { data = await res.json(); } catch (e) { return { fallback: true, error: 'parse' }; }
@@ -121,6 +145,10 @@ async function premiumTranslate({ srcLang, tgtLang, texts }) {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'convert') {
     getRate(msg.from, msg.to).then((rate) => sendResponse({ rate }));
+    return true; // async
+  }
+  if (msg && msg.type === 'GET_RATES') {
+    getRateTable().then(sendResponse);
     return true; // async
   }
   if (msg && msg.type === 'premiumTranslate') {

@@ -19,6 +19,8 @@ export function defaultSettings() {
     // "manual" = dormant until the user enables a host; the per-host map gates activation.
     mode: 'manual',
     enabledHosts: {},
+    glossaryEnabled: true,
+    sizeEnabled: true,
   };
 }
 
