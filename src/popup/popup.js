@@ -133,7 +133,9 @@ async function init() {
   });
 
   async function saveSettings() {
+    const { settings: existing = {} } = await chrome.storage.sync.get('settings');
     const settings = {
+      ...existing,
       targetLang: $('lang').value,
       targetCurrency: $('ccy').value,
       glossaryEnabled: $('gloss').checked,
