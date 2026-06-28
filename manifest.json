@@ -1,6 +1,6 @@
-{
+﻿{
   "manifest_version": 3,
-  "name": "Luxe Translate — Full-Page Translator & Currency Converter",
+  "name": "Globuy — Full-Page Translator & Currency Converter",
   "version": "0.1.0",
   "description": "Fully translates foreign luxury/resale sites (incl. scroll-loaded content) and converts prices to your currency, inline.",
   "permissions": ["storage", "tabs"],
@@ -26,7 +26,7 @@
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "Luxe Translate"
+    "default_title": "Globuy"
   },
   "icons": {
     "16": "icons/icon16.png",

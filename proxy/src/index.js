@@ -1,4 +1,4 @@
-// Cloudflare Worker: Luxe Translate premium translation proxy.
+﻿// Cloudflare Worker: Globuy premium translation proxy.
 //
 // Holds the LLM API key (as a Worker secret — never in source or the extension),
 // enforces a free monthly token quota per anonymous install token, and proxies

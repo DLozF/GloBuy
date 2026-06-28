@@ -1,4 +1,4 @@
-// Popup: reads/writes settings and drives the active tab's content script.
+﻿// Popup: reads/writes settings and drives the active tab's content script.
 const $ = (id) => document.getElementById(id);
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
@@ -30,7 +30,7 @@ async function send(tabId, message) {
 }
 
 function statusText(st) {
-  if (!st) return 'Open a normal web page to use Luxe Translate.';
+  if (!st) return 'Open a normal web page to use Globuy.';
   if (!st.apiAvailable) return 'On-device translator unavailable — update to Chrome 138+.';
   if (st.srcLang && st.srcLang !== st.tgtLang) return `Detected ${st.srcLang.toUpperCase()} → ${st.tgtLang.toUpperCase()}.`;
   if (st.srcLang && st.srcLang === st.tgtLang) return 'Page is already in your language.';
