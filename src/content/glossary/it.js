@@ -1,0 +1,20 @@
+// Italian luxury/resale jargon -> preferred English.
+export default {
+  'nuovo con cartellino': 'new with tags',
+  'nuovo con etichetta': 'new with tags',
+  'nuovo senza cartellino': 'new without tags',
+  'mai indossato': 'never worn',
+  'ottime condizioni': 'excellent condition',
+  'buone condizioni': 'good condition',
+  'condizioni discrete': 'fair condition',
+  'autenticato': 'authenticated',
+  'autenticita garantita': 'authenticity guaranteed',
+  'edizione limitata': 'limited edition',
+  'fatto a mano': 'handmade',
+  'vera pelle': 'genuine leather',
+  'borsa': 'handbag',
+  'pronto moda': 'ready-to-wear',
+  'spedizione gratuita': 'free shipping',
+  'venduto': 'sold',
+  'taglia unica': 'one size',
+};
