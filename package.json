@@ -2,8 +2,10 @@
   "name": "globuy",
   "version": "1.0.0",
   "private": true,
-  "description": "Tests for the Globuy extension: pure detection helpers (findPrices, findSizes, inferSourceCurrency) plus jsdom DOM-output and retention tests. No build step or runtime dependencies; jsdom is dev-only.",
+  "description": "GloBuy Chrome extension — full-page translator and currency converter for luxury/resale sites.",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "test": "node --expose-gc --test",
     "lint": "eslint ."
   },

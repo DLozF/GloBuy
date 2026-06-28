@@ -148,8 +148,10 @@ export async function translateText(translator, text, gloss, protectLiterals) {
 }
 
 // ESM Export version called by pipeline.js
-// gloss is pre-computed by the caller (null to disable glossary protection)
-export async function translateBatch(texts, srcLang, tgtLang, translator, gloss) {
+// gloss is the luxury jargon map for this source language (null = disabled/unavailable).
+// glossaryEnabled gates the content glossary (applyGlossary) independently of gloss,
+// so European-language glossary entries fire even when there is no luxury jargon table.
+export async function translateBatch(texts, srcLang, tgtLang, translator, gloss, glossaryEnabled = true) {
   const inferred = globalThis.GlobuyCurrency ? globalThis.GlobuyCurrency.inferSourceCurrency(srcLang) : null;
 
   const items = texts.map((text) => {
@@ -167,7 +169,7 @@ export async function translateBatch(texts, srcLang, tgtLang, translator, gloss)
     const { text, protectLiterals } = items[i];
 
     // If glossary is enabled and there is a direct whole-node match, use it!
-    if (gloss != null) {
+    if (glossaryEnabled) {
       const direct = applyGlossary(text, srcLang);
       if (direct) {
         results[i] = direct;

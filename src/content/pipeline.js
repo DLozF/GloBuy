@@ -64,6 +64,7 @@ async function translateRoot(root) {
       state.settings.targetLang,
       state.translator,
       gloss,
+      state.settings?.glossaryEnabled ?? true,
     );
     slice.forEach((node, j) => {
       if (node.isConnected && out[j] != null && out[j] !== node.nodeValue) {
