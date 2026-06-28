@@ -17,7 +17,7 @@
   padding: 10px 14px;
   font: 500 13px/1.2 system-ui, -apple-system, sans-serif;
   color: #fff;
-  background: #111827;
+  background: #0fb5a8;
   border: none;
   border-radius: 999px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
@@ -25,7 +25,7 @@
 }
 
 .tr-activate:hover {
-  background: #1f2937;
+  background: #0a8a7f;
 }
 
 .tr-activate:disabled {

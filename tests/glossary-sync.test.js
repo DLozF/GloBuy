@@ -1,7 +1,7 @@
 // Drift guard: the proxy keeps a hand-copy of the extension's glossary
 // (proxy/src/glossary.js mirrors src/data/glossary.js) because a content script
 // can't import an ESM/JSON module without a build step. The two wrappers differ
-// (`globalThis.LUXE_GLOSSARY =` vs `export const GLOSSARY =`), so the FILES can't
+// (`globalThis.GLOBUY_GLOSSARY =` vs `export const GLOSSARY =`), so the FILES can't
 // be byte-identical — but their data must be. This test fails the build the
 // moment the two drift, in both source text and parsed value.
 const { test } = require('node:test');
@@ -31,7 +31,7 @@ test('extension and proxy glossary bodies are byte-identical', () => {
 });
 
 test('extension and proxy glossaries parse to the same object', async () => {
-  const ext = loadModule('src/data/glossary.js').LUXE_GLOSSARY;
+  const ext = loadModule('src/data/glossary.js').GLOBUY_GLOSSARY;
   const { GLOSSARY: proxy } = await import(pathToFileURL(PROXY_PATH).href);
   assert.deepEqual(proxy, ext);
 });

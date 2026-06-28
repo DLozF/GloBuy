@@ -2,13 +2,13 @@ import { defineManifest } from '@crxjs/vite-plugin';
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'TRANSLATE — Luxury/Resale Translator + Currency',
+  name: 'GloBuy — Full-Page Translator & Currency Converter',
   description:
-    'Fully translates foreign luxury/resale sites with Chrome on-device AI and converts prices inline to your currency.',
-  version: '0.1.0',
+    'Fully translates foreign luxury/resale sites and converts prices inline to your currency.',
+  version: '1.0.0',
   minimum_chrome_version: '138',
-  permissions: ['storage'],
-  host_permissions: ['<all_urls>', 'https://api.frankfurter.dev/*'],
+  permissions: ['storage', 'tabs'],
+  host_permissions: ['<all_urls>'],
   content_scripts: [
     {
       matches: ['<all_urls>'],
@@ -18,12 +18,12 @@ export default defineManifest({
     },
   ],
   background: {
-    service_worker: 'src/background/service-worker.js',
+    service_worker: 'src/background.js',
     type: 'module',
   },
   action: {
-    default_popup: 'src/popup/index.html',
-    default_title: 'TRANSLATE',
+    default_popup: 'src/popup/popup.html',
+    default_title: 'GloBuy',
   },
   icons: {
     16: 'public/icons/icon-16.png',

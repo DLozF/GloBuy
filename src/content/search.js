@@ -99,5 +99,5 @@
     installed = true;
   }
 
-  globalThis.LuxeSearch = { install, shouldTranslateQuery };
+  globalThis.GlobuySearch = { install, shouldTranslateQuery };
 })();

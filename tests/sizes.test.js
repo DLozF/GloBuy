@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { loadModule } = require('./helpers');
 
-const sizes = () => loadModule('src/content/sizes.js').LuxeSizes;
+const sizes = () => loadModule('src/content/sizes.js').GlobuySizes;
 
 test('findSizes: shoe length in mm', () => {
   const r = sizes().findSizes('사이즈 260mm');

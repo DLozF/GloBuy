@@ -14,10 +14,10 @@ function jsdomWindow() {
   return win;
 }
 function currency(win) {
-  return loadModule('src/content/currency.js', { document: win.document, location: win.location, Node: win.Node }).LuxeCurrency;
+  return loadModule('src/content/currency.js', { document: win.document, location: win.location, Node: win.Node }).GlobuyCurrency;
 }
 function sizes(win) {
-  return loadModule('src/content/sizes.js', { document: win.document, Node: win.Node }).LuxeSizes;
+  return loadModule('src/content/sizes.js', { document: win.document, Node: win.Node }).GlobuySizes;
 }
 
 test('currency.annotate: appends a converted amount span inline, keeping the original', async () => {

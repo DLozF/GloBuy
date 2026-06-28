@@ -5,14 +5,14 @@ const globals = require('globals');
 
 // Modules assign their API onto globalThis and read each other's — declare them
 // so cross-file references aren't flagged as undefined.
-const luxeGlobals = {
-  LuxeWalker: 'readonly',
-  LuxeTranslator: 'readonly',
-  LuxeCurrency: 'readonly',
-  LuxeSizes: 'readonly',
-  LuxeSearch: 'readonly',
-  LUXE_GLOSSARY: 'writable',
-  LUXE_DEBUG: 'readonly'
+const globuyGlobals = {
+  GlobuyWalker: 'readonly',
+  GlobuyTranslator: 'readonly',
+  GlobuyCurrency: 'readonly',
+  GlobuySizes: 'readonly',
+  GlobuySearch: 'readonly',
+  GLOBUY_GLOSSARY: 'writable',
+  GLOBUY_DEBUG: 'readonly'
 };
 
 module.exports = [
@@ -31,7 +31,7 @@ module.exports = [
         // Chrome built-in on-device AI.
         Translator: 'readonly',
         LanguageDetector: 'readonly',
-        ...luxeGlobals
+        ...globuyGlobals
       }
     },
     rules: {

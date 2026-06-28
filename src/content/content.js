@@ -20,10 +20,10 @@
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
 
   // Developer logging, off by default. Enable in the content-script console with
-  // `LUXE_DEBUG = true`, or persistently per-origin via `localStorage.LUXE_DEBUG = '1'`.
+  // `GLOBUY_DEBUG = true`, or persistently per-origin via `localStorage.GLOBUY_DEBUG = '1'`.
   // The flag lives on globalThis so the sibling modules' loggers see it too.
-  try { if (localStorage.getItem('LUXE_DEBUG') === '1') globalThis.LUXE_DEBUG = true; } catch (e) { /* localStorage may be blocked */ }
-  const debug = (...args) => { if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args); };
+  try { if (localStorage.getItem('GLOBUY_DEBUG') === '1') globalThis.GLOBUY_DEBUG = true; } catch (e) { /* localStorage may be blocked */ }
+  const debug = (...args) => { if (globalThis.GLOBUY_DEBUG) console.warn('[GloBuy]', ...args); };
 
   let settings = Object.assign({}, DEFAULTS);
   let enabled = false;
@@ -89,7 +89,7 @@
   function detectionSample() {
     let texts = [];
     try {
-      const nodes = LuxeWalker.collectTextNodes(document.body, new WeakSet());
+      const nodes = GlobuyWalker.collectTextNodes(document.body, new WeakSet());
       texts = nodes.map((n) => (n.nodeValue || '').trim()).filter((t) => t.length >= 4);
     } catch (e) { /* fall back below */ }
     texts.sort((a, b) => b.length - a.length);
@@ -101,7 +101,7 @@
 
   function glossFor() {
     if (!settings.glossaryEnabled) return null;
-    return (globalThis.LUXE_GLOSSARY && globalThis.LUXE_GLOSSARY[srcLang]) || null;
+    return (globalThis.GLOBUY_GLOSSARY && globalThis.GLOBUY_GLOSSARY[srcLang]) || null;
   }
 
   function notify(state, extra) {
@@ -124,7 +124,7 @@
     // may lack the on-device LanguageDetector entirely. So when detection can't
     // name the language, on-device bails ('nolang') but premium sends
     // srcLang:'auto' and lets the proxy detect the source itself.
-    if (!srcLang) srcLang = langBase(await LuxeTranslator.detectLanguage(detectionSample()));
+    if (!srcLang) srcLang = langBase(await GlobuyTranslator.detectLanguage(detectionSample()));
     if (srcLang && srcLang !== 'und' && srcLang === tgtLang) { notify('same'); return false; }
     if (!srcLang || srcLang === 'und') {
       if (!premium) { notify('nolang'); return false; }
@@ -140,9 +140,9 @@
       return true;
     }
 
-    if (!LuxeTranslator.apiAvailable()) { notify('unavailable'); return false; }
+    if (!GlobuyTranslator.apiAvailable()) { notify('unavailable'); return false; }
     try {
-      translator = await LuxeTranslator.getTranslator(srcLang, tgtLang, (loaded) => notify('downloading', loaded));
+      translator = await GlobuyTranslator.getTranslator(srcLang, tgtLang, (loaded) => notify('downloading', loaded));
       return true;
     } catch (e) {
       // Chrome requires a user gesture to *start* the on-device model download
@@ -186,9 +186,9 @@
   // on-device is unavailable (no built-in AI, or it needs a user gesture).
   async function ensureFallbackTranslator() {
     if (fallbackTranslator) return true;
-    if (!LuxeTranslator.apiAvailable() || !srcLang || srcLang === tgtLang) return false;
+    if (!GlobuyTranslator.apiAvailable() || !srcLang || srcLang === tgtLang) return false;
     try {
-      fallbackTranslator = await LuxeTranslator.getTranslator(srcLang, tgtLang);
+      fallbackTranslator = await GlobuyTranslator.getTranslator(srcLang, tgtLang);
       return true;
     } catch (e) {
       return false;
@@ -210,14 +210,14 @@
   // doesn't turn ₩/원 into the word "won") — otherwise the currency module can't
   // detect and convert them afterwards.
   function priceLiteralsFor(text, inferred) {
-    if (!globalThis.LuxeCurrency || !/\d/.test(text)) return null;
-    const lits = LuxeCurrency.findPrices(text, srcLang, inferred).map((p) => text.slice(p.start, p.end));
+    if (!globalThis.GlobuyCurrency || !/\d/.test(text)) return null;
+    const lits = GlobuyCurrency.findPrices(text, srcLang, inferred).map((p) => text.slice(p.start, p.end));
     return lits.length ? lits : null;
   }
 
   async function translateNodes(nodes) {
     const gloss = glossFor();
-    const inferred = globalThis.LuxeCurrency ? LuxeCurrency.inferSourceCurrency(srcLang) : null;
+    const inferred = globalThis.GlobuyCurrency ? GlobuyCurrency.inferSourceCurrency(srcLang) : null;
 
     let pending = nodes.filter((n) => !seenText.has(n) && !n._ltSkip && n.nodeValue);
     if (!pending.length) return;
@@ -238,19 +238,19 @@
       });
       let outs;
       if (usePremium) {
-        const r = await LuxeTranslator.translateRemote(items, srcLang, tgtLang);
+        const r = await GlobuyTranslator.translateRemote(items, srcLang, tgtLang);
         if (r.ok) {
           outs = r.results;
           notify('premium', r.remaining);
         } else {
           handlePremiumFailure(r.reason);
           if (!(await ensureFallbackTranslator())) continue;
-          try { outs = await LuxeTranslator.translateBatch(fallbackTranslator, items, gloss); }
+          try { outs = await GlobuyTranslator.translateBatch(fallbackTranslator, items, gloss); }
           catch (e) { continue; }
         }
       } else {
         try {
-          outs = await LuxeTranslator.translateBatch(translator, items, gloss);
+          outs = await GlobuyTranslator.translateBatch(translator, items, gloss);
         } catch (e) {
           continue; // whole chunk failed; nodes stay unseen for a later retry
         }
@@ -286,7 +286,7 @@
   async function translateAttrs(targets) {
     if (!targets.length) return;
     if (usePremium) {
-      const r = await LuxeTranslator.translateRemote(targets.map((t) => ({ text: t.value })), srcLang, tgtLang);
+      const r = await GlobuyTranslator.translateRemote(targets.map((t) => ({ text: t.value })), srcLang, tgtLang);
       if (r.ok) {
         for (let i = 0; i < targets.length; i++) applyAttr(targets[i].el, targets[i].attr, targets[i].value, r.results[i]);
         return;
@@ -309,7 +309,7 @@
         if (seen && seen.has(attr)) continue;
         let translated;
         try {
-          translated = await LuxeTranslator.translateText(tr, value, gloss, null);
+          translated = await GlobuyTranslator.translateText(tr, value, gloss, null);
         } catch (e) {
           continue; // leave unmarked so a later pass can retry
         }
@@ -325,18 +325,18 @@
     if (!t || !t.trim() || !/\p{L}/u.test(t)) return;
     let translated;
     if (usePremium) {
-      const r = await LuxeTranslator.translateRemote([{ text: t }], srcLang, tgtLang);
+      const r = await GlobuyTranslator.translateRemote([{ text: t }], srcLang, tgtLang);
       if (r.ok) translated = r.results[0];
       else {
         handlePremiumFailure(r.reason);
         if (await ensureFallbackTranslator()) {
-          try { translated = await LuxeTranslator.translateText(fallbackTranslator, t, glossFor(), null); }
+          try { translated = await GlobuyTranslator.translateText(fallbackTranslator, t, glossFor(), null); }
           catch (e) { return; }
         } else return;
       }
     } else {
       try {
-        translated = await LuxeTranslator.translateText(translator, t, glossFor(), null);
+        translated = await GlobuyTranslator.translateText(translator, t, glossFor(), null);
       } catch (e) {
         return; // titleRecord stays null so the next run retries
       }
@@ -352,16 +352,16 @@
     let nodes = [];
     let attrTargets = [];
     for (const r of roots) {
-      nodes = nodes.concat(LuxeWalker.collectTextNodes(r, seenText));
-      attrTargets = attrTargets.concat(LuxeWalker.collectAttrTargets(r, seenAttr));
+      nodes = nodes.concat(GlobuyWalker.collectTextNodes(r, seenText));
+      attrTargets = attrTargets.concat(GlobuyWalker.collectAttrTargets(r, seenAttr));
     }
     if (nodes.length) await translateNodes(nodes);
     if (attrTargets.length) await translateAttrs(attrTargets);
   }
 
   async function processSizes(roots) {
-    if (!settings.sizeEnabled || !globalThis.LuxeSizes) return;
-    await LuxeSizes.annotate(roots, { seen: seenSize });
+    if (!settings.sizeEnabled || !globalThis.GlobuySizes) return;
+    await GlobuySizes.annotate(roots, { seen: seenSize });
   }
 
   // Handle text nodes edited in place (characterData). Two cases on these sites:
@@ -380,7 +380,7 @@
       if (!v || !v.trim()) continue;
       if (node._ltTrans === v) continue;                       // our own write
       if (!/\p{L}/u.test(v) || CCY_ONLY.test(v)) continue;     // nothing to translate
-      if (LuxeWalker.shouldSkipEl(node.parentElement)) continue;
+      if (GlobuyWalker.shouldSkipEl(node.parentElement)) continue;
       // Only a true revert (back to the source we last translated from) counts
       // toward the cap; genuinely new content resets it, so recycled/virtualized
       // nodes keep translating instead of stalling after 3 edits.
@@ -400,7 +400,7 @@
     if (reverseTranslator) return true;
     if (settings.premiumEnabled && usePremium) return true;
     try {
-      reverseTranslator = await LuxeTranslator.getTranslator(tgtLang, srcLang);
+      reverseTranslator = await GlobuyTranslator.getTranslator(tgtLang, srcLang);
       return true;
     } catch (e) {
       return false;
@@ -411,14 +411,14 @@
     // Reverse-translating the query needs a known source language; skip premium
     // when the source was left to the proxy ('auto') — there's no target to give.
     if (settings.premiumEnabled && usePremium && srcLang && srcLang !== 'auto') {
-      const r = await LuxeTranslator.translateRemote([{ text }], tgtLang, srcLang);
+      const r = await GlobuyTranslator.translateRemote([{ text }], tgtLang, srcLang);
       if (r.ok && r.results[0]) return r.results[0];
       handlePremiumFailure(r.reason);
     }
     if (!reverseTranslator) {
       if (!srcLang || srcLang === tgtLang) return text;
       try {
-        reverseTranslator = await LuxeTranslator.getTranslator(tgtLang, srcLang);
+        reverseTranslator = await GlobuyTranslator.getTranslator(tgtLang, srcLang);
       } catch (e) {
         return text;
       }
@@ -427,24 +427,24 @@
     // rather than transliterating them into something the catalog won't match.
     const brands = text.match(/\b[A-Z][A-Z0-9]{1,}\b/g);
     try {
-      return await LuxeTranslator.translateText(reverseTranslator, text, null, brands);
+      return await GlobuyTranslator.translateText(reverseTranslator, text, null, brands);
     } catch (e) {
       return text; // submit the original query rather than failing the search
     }
   }
 
   async function setupSearch() {
-    if (searchInstalled || !globalThis.LuxeSearch) return;
+    if (searchInstalled || !globalThis.GlobuySearch) return;
     // 'auto' means the source language is unknown to us (proxy-detected), so
     // there's nothing to reverse-translate the query into — leave search alone.
     if (!srcLang || srcLang === tgtLang || srcLang === 'auto') return;
     if (!(await ensureReverseTranslator())) return;
-    LuxeSearch.install({ translateQuery });
+    GlobuySearch.install({ translateQuery });
     searchInstalled = true;
   }
 
   async function processCurrency(roots, extra) {
-    await LuxeCurrency.annotate(roots, Object.assign({
+    await GlobuyCurrency.annotate(roots, Object.assign({
       fromHint: srcLang || langBase(settings.targetLanguage),
       target: settings.targetCurrency,
       seen: seenCcy,
@@ -469,8 +469,8 @@
   // the service worker caches it so processCurrency hits a warm cache.
   function warmRate() {
     try {
-      if (!globalThis.LuxeCurrency) return;
-      const from = LuxeCurrency.inferSourceCurrency(srcLang);
+      if (!globalThis.GlobuyCurrency) return;
+      const from = GlobuyCurrency.inferSourceCurrency(srcLang);
       const to = (settings.targetCurrency || 'USD').toUpperCase();
       if (from && from !== to) {
         chrome.runtime.sendMessage({ type: 'convert', from, to }, () => { void chrome.runtime.lastError; });
@@ -492,7 +492,7 @@
     // missed the grid while currency — which re-scans the whole body a moment
     // later — happened to catch it.)
     if (!observer) {
-      observer = LuxeWalker.observe((added, changed) => {
+      observer = GlobuyWalker.observe((added, changed) => {
         if (!enabled) return;
         // Hand the coalesced batch to the serial queue so it can't overlap a
         // prior batch still in flight (the observer is sync; the work is async).
@@ -591,7 +591,7 @@
             srcLang,
             tgtLang,
             host: HOST,
-            apiAvailable: LuxeTranslator.apiAvailable()
+            apiAvailable: GlobuyTranslator.apiAvailable()
           });
           break;
         default:

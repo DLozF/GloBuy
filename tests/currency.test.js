@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { loadModule } = require('./helpers');
 
-const ccy = (opts) => loadModule('src/content/currency.js', opts).LuxeCurrency;
+const ccy = (opts) => loadModule('src/content/currency.js', opts).GlobuyCurrency;
 
 test('findPrices: explicit symbol', () => {
   const p = ccy().findPrices('₩1,200,000', 'ko');

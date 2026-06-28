@@ -8,7 +8,7 @@ const BATCH_DELIM = String.fromCharCode(0xF8FF);
 const cache = new Map(); // "src->tgt" -> Promise<Translator>
 
 const debug = (...args) => {
-  if (globalThis.LUXE_DEBUG) console.warn('[Luxe]', ...args);
+  if (globalThis.GLOBUY_DEBUG) console.warn('[GloBuy]', ...args);
 };
 
 // Glossary -> sorted [{match,value}] entries
@@ -152,14 +152,14 @@ export async function translateText(translator, text, gloss, protectLiterals) {
 export async function translateBatch(texts, srcLang, tgtLang, translator) {
   const settings = await getSettings();
   const gloss = settings.glossaryEnabled
-    ? (globalThis.LUXE_GLOSSARY && globalThis.LUXE_GLOSSARY[srcLang]) || null
+    ? (globalThis.GLOBUY_GLOSSARY && globalThis.GLOBUY_GLOSSARY[srcLang]) || null
     : null;
 
-  const inferred = globalThis.LuxeCurrency ? globalThis.LuxeCurrency.inferSourceCurrency(srcLang) : null;
+  const inferred = globalThis.GlobuyCurrency ? globalThis.GlobuyCurrency.inferSourceCurrency(srcLang) : null;
 
   const items = texts.map((text) => {
-    const protectLiterals = (globalThis.LuxeCurrency && /\d/.test(text))
-      ? globalThis.LuxeCurrency.findPrices(text, srcLang, inferred).map((p) => text.slice(p.start, p.end))
+    const protectLiterals = (globalThis.GlobuyCurrency && /\d/.test(text))
+      ? globalThis.GlobuyCurrency.findPrices(text, srcLang, inferred).map((p) => text.slice(p.start, p.end))
       : null;
     return { text, protectLiterals };
   });
@@ -295,7 +295,7 @@ export async function translateRemote(items, srcLang, tgtLang) {
 }
 
 // For backward compatibility (globalThis namespace)
-globalThis.LuxeTranslator = {
+globalThis.GlobuyTranslator = {
   apiAvailable: apiSupported,
   detectorAvailable,
   detectLanguage,

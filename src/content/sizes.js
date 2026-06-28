@@ -156,5 +156,5 @@
     }
   }
 
-  globalThis.LuxeSizes = { annotate, findSizes, detectGender };
+  globalThis.GlobuySizes = { annotate, findSizes, detectGender };
 })();

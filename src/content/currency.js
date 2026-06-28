@@ -290,7 +290,7 @@ export function removeAnnotations(doc) {
 export const annotateRoot = annotate;
 
 // For backward compatibility (globalThis namespace)
-globalThis.LuxeCurrency = {
+globalThis.GlobuyCurrency = {
   annotate,
   findPrices,
   inferSourceCurrency,

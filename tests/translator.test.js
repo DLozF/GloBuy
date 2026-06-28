@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { loadModule } = require('./helpers');
 
-const T = loadModule('src/content/translator.js').LuxeTranslator;
+const T = loadModule('src/content/translator.js').GlobuyTranslator;
 const DELIM = String.fromCharCode(0xF8FF);
 const items = (...texts) => texts.map((text) => ({ text, protectLiterals: null }));
 

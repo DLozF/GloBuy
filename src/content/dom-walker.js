@@ -200,7 +200,7 @@ export function revertAll() {
 }
 
 // Global exposure for CommonJS tests loading via loadModule
-globalThis.LuxeWalker = {
+globalThis.GlobuyWalker = {
   collectTextNodes,
   collectAttrTargets,
   observe,

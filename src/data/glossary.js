@@ -7,7 +7,7 @@
 // the expected "Authentic").
 //
 // Extend per language as the glossary grows.
-globalThis.LUXE_GLOSSARY = {
+globalThis.GLOBUY_GLOSSARY = {
   ko: {
     "정품인증": "Authenticity Verified",
     "정품": "Authentic",

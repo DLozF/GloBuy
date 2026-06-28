@@ -60,7 +60,7 @@ function setupEnv() {
   };
 
   // Stub the heavy collaborators; keep the real dom-walker for collection/observe.
-  global.LuxeTranslator = {
+  global.GlobuyTranslator = {
     apiAvailable: () => true,
     detectorAvailable: () => true,
     detectLanguage: async () => 'ko',
@@ -68,11 +68,11 @@ function setupEnv() {
     translateText: async (_tr, text) => String(text).toUpperCase(),
     translateBatch: async (_tr, items) => items.map((it) => it.text.toUpperCase())
   };
-  global.LuxeCurrency = { annotate: async () => {}, findPrices: () => [], inferSourceCurrency: () => null };
-  global.LuxeSizes = { annotate: async () => {} };
-  global.LuxeSearch = { install: () => {} };
+  global.GlobuyCurrency = { annotate: async () => {}, findPrices: () => [], inferSourceCurrency: () => null };
+  global.GlobuySizes = { annotate: async () => {} };
+  global.GlobuySearch = { install: () => {} };
 
-  evalGlobal(src('src/content/dom-walker.js')); // real -> global.LuxeWalker
+  evalGlobal(src('src/content/dom-walker.js')); // real -> global.GlobuyWalker
   evalGlobal(src('src/content/content.js'));     // real orchestrator (auto-init: enabled=false -> no run)
 
   const apply = () => new Promise((resolve) => listener({ type: 'apply' }, {}, resolve));

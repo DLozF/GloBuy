@@ -1,5 +1,5 @@
 // COPY of ../../src/data/glossary.js, re-exported as an ESM module for the Worker.
-// The extension keeps the canonical copy on `globalThis.LUXE_GLOSSARY`; this file
+// The extension keeps the canonical copy on `globalThis.GLOBUY_GLOSSARY`; this file
 // mirrors it so the proxy can bake the per-language glossary into the LLM's system
 // instruction. Keep the two in sync (or share via a build step later).
 export const GLOSSARY = {

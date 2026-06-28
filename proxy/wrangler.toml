@@ -1,4 +1,4 @@
-name = "luxe-translate-proxy"
+name = "globuy-proxy"
 main = "src/index.js"
 compatibility_date = "2024-09-01"
 
