@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "luxe-translate",
   "version": "1.0.0",
   "private": true,
@@ -8,9 +8,11 @@
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@crxjs/vite-plugin": "^2.7.0",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.5.0",
     "globals": "^17.7.0",
-    "jsdom": "^29.1.1"
+    "jsdom": "^29.1.1",
+    "vite": "^8.1.0"
   }
 }
