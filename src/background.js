@@ -78,7 +78,7 @@ async function getRate(from, to) {
 // extension authenticates with an anonymous install token only. A user-supplied
 // key (BYOK) is forwarded so the proxy can bill it and skip the free cap; the
 // provider key itself never lives in the extension.
-const DEFAULT_PROXY_URL = 'https://luxe-translate-proxy.zol1th.workers.dev/translate';
+const DEFAULT_PROXY_URL = 'https://globuy-proxy.zol1th.workers.dev/translate';
 
 async function getInstallToken() {
   const { installToken } = await chrome.storage.local.get('installToken');
