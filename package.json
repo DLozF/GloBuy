@@ -1,8 +1,8 @@
-{
+﻿{
   "name": "luxe-translate",
   "version": "1.0.0",
   "private": true,
-  "description": "Tests for the Luxe Translate extension: pure detection helpers (findPrices, findSizes, inferSourceCurrency) plus jsdom DOM-output and retention tests. No build step or runtime dependencies; jsdom is dev-only.",
+  "description": "Tests for the Globuy extension: pure detection helpers (findPrices, findSizes, inferSourceCurrency) plus jsdom DOM-output and retention tests. No build step or runtime dependencies; jsdom is dev-only.",
   "scripts": {
     "test": "node --expose-gc --test",
     "lint": "eslint ."

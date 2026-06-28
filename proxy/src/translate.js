@@ -1,4 +1,4 @@
-// Core translation logic for the Luxe Translate premium proxy.
+﻿// Core translation logic for the Globuy premium proxy.
 //
 // Pure module — no Cloudflare Worker globals — so it runs (and is unit-tested)
 // under plain `node --test`. The HTTP/quota wrapper lives in index.js.

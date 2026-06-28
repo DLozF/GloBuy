@@ -1,4 +1,4 @@
-# Luxe Translate
+﻿# Globuy
 
 A Chrome extension (Manifest V3) that **fully translates foreign luxury/resale
 shopping sites** and **converts prices to your currency, inline** — built for
@@ -7,7 +7,7 @@ American shoppers browsing Korean, Japanese, Chinese, and Vietnamese sites (e.g.
 
 ## Why it's different from "just use Google Translate"
 
-Google Translate fails on these sites in two distinct ways. Luxe Translate fixes
+Google Translate fails on these sites in two distinct ways. Globuy fixes
 both:
 
 1. **Coverage** — Google translates the header but misses prices, buttons, and

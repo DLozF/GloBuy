@@ -1,8 +1,8 @@
-# Privacy Policy — Luxe Translate
+# Privacy Policy — Globuy
 
 _Last updated: 2026-06-26_
 
-Luxe Translate is built to do its job **without collecting, storing, or
+Globuy is built to do its job **without collecting, storing, or
 transmitting your personal data**. There is no backend server, no account, no
 analytics, no tracking, and no ads. **In this version, all translation runs
 on-device** and no page content ever leaves your browser. A future **optional

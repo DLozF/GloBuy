@@ -1,11 +1,11 @@
-# Permissions — Luxe Translate
+﻿# Permissions — Globuy
 
 This extension follows least privilege. Below is every permission it requests
 and why, plus the permissions it deliberately does **not** request.
 
 ## `host_permissions: ["<all_urls>"]` and content-script `matches: ["<all_urls>"]`
 
-**Why it's required.** Luxe Translate's purpose is to translate and convert
+**Why it's required.** Globuy's purpose is to translate and convert
 prices on *whatever* foreign luxury/resale shopping site you choose to visit
 (Korean, Japanese, Chinese, Vietnamese, …). These sites are countless and can't
 be enumerated in advance, so the content script must be eligible to run on any
