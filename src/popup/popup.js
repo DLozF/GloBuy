@@ -1,102 +1,154 @@
-// Popup controller: per-site toggle, target language/currency, and live status.
+﻿// Popup: reads/writes settings and drives the active tab's content script.
+const $ = (id) => document.getElementById(id);
 
-import { MSG, STATUS_KIND } from '../shared/messages.js';
-import { getSettings, setSettings, setHostEnabled } from '../shared/settings.js';
-import { FRANKFURTER_SUPPORTED } from '../shared/currencies.js';
-
-// Languages the Translator API commonly supports, shown in the target dropdown.
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
 const LANGUAGES = [
-  ['en', 'English'], ['fr', 'French'], ['it', 'Italian'], ['de', 'German'],
-  ['es', 'Spanish'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['ja', 'Japanese'],
-  ['ko', 'Korean'], ['zh', 'Chinese'], ['ru', 'Russian'], ['ar', 'Arabic'],
-  ['tr', 'Turkish'], ['pl', 'Polish'], ['sv', 'Swedish'],
+  ['en', 'English'], ['ko', 'Korean'], ['ja', 'Japanese'], ['zh', 'Chinese'],
+  ['vi', 'Vietnamese'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'],
+  ['it', 'Italian'], ['pt', 'Portuguese'], ['ru', 'Russian'], ['ar', 'Arabic']
 ];
 
-const els = {
-  host: document.getElementById('host'),
-  enable: document.getElementById('enable'),
-  targetLang: document.getElementById('targetLang'),
-  targetCurrency: document.getElementById('targetCurrency'),
-  status: document.getElementById('status'),
-};
+const DEFAULTS = { targetLanguage: 'en', targetCurrency: 'USD', glossaryEnabled: true, sizeEnabled: true, autoTranslate: true, premiumEnabled: false };
 
-const STATUS_TEXT = {
-  [STATUS_KIND.UNSUPPORTED_API]: 'On-device translation isn’t available in this Chrome.',
-  [STATUS_KIND.UNSUPPORTED_LANG]: 'This language pair isn’t available for translation.',
-  [STATUS_KIND.NEEDS_ACTIVATION]: 'Click “Translate this page” on the page to download the model.',
-  [STATUS_KIND.READY]: 'Translating.',
-  [STATUS_KIND.IDLE]: '',
-};
-
-let activeTab = null;
-let host = '';
-
-function fillSelect(select, entries, selected) {
-  select.innerHTML = '';
-  for (const [value, label] of entries) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = label;
-    if (value === selected) opt.selected = true;
-    select.appendChild(opt);
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch (e) { return ''; }
+}
+function fillSelect(el, entries) {
+  for (const e of entries) {
+    const [value, label] = Array.isArray(e) ? e : [e, e];
+    const o = document.createElement('option');
+    o.value = value; o.textContent = label;
+    el.appendChild(o);
   }
 }
+async function send(tabId, message) {
+  try { return await chrome.tabs.sendMessage(tabId, message); } catch (e) { return null; }
+}
 
-async function sendToTab(type) {
-  if (!activeTab) return;
-  try {
-    await chrome.tabs.sendMessage(activeTab.id, { type });
-  } catch {
-    /* content script not present on this page */
+function statusText(st) {
+  if (!st) return 'Open a normal web page to use Globuy.';
+  if (!st.apiAvailable) return 'On-device translator unavailable — update to Chrome 138+.';
+  if (st.srcLang && st.srcLang !== st.tgtLang) return `Detected ${st.srcLang.toUpperCase()} → ${st.tgtLang.toUpperCase()}.`;
+  if (st.srcLang && st.srcLang === st.tgtLang) return 'Page is already in your language.';
+  return 'Ready.';
+}
+
+// Live status pushed from the content script (chrome.runtime sendMessage). The
+// model download in particular reports progress, which we surface as a percent.
+function liveStatusText(msg) {
+  switch (msg.state) {
+    case 'downloading': {
+      const pct = Math.max(0, Math.min(100, Math.round((Number(msg.extra) || 0) * 100)));
+      return `Downloading translation model… ${pct}%`;
+    }
+    case 'starting': return 'Translating…';
+    case 'done': return 'Translation complete.';
+    case 'premium': {
+      if (msg.extra == null) return 'Premium translation active.';
+      const k = Math.max(0, Math.round(Number(msg.extra) / 1000));
+      return `Premium active — ~${k}K tokens left this month.`;
+    }
+    case 'quotafallback': return 'Premium quota reached — using on-device translation.';
+    case 'premiumerror': return 'Premium unavailable — using on-device translation.';
+    case 'needsgesture': return 'Click anywhere on the page to start translation.';
+    case 'unavailable': return 'On-device translator unavailable — update to Chrome 138+.';
+    case 'nolang': return 'Couldn’t detect the page language.';
+    case 'same': return 'Page is already in your language.';
+    case 'pairunavailable': return 'This language pair isn’t available on-device.';
+    default: return null;
   }
 }
 
 async function init() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  activeTab = tab;
-  try {
-    host = tab?.url ? new URL(tab.url).hostname : '';
-  } catch {
-    host = '';
+  fillSelect($('lang'), LANGUAGES);
+  fillSelect($('ccy'), CURRENCIES);
+
+  const { settings = {}, siteState = {} } = await chrome.storage.sync.get(['settings', 'siteState']);
+  const s = Object.assign({}, DEFAULTS, settings);
+  $('lang').value = s.targetLanguage;
+  $('ccy').value = s.targetCurrency;
+  $('gloss').checked = s.glossaryEnabled;
+  $('size').checked = s.sizeEnabled;
+  $('premium').checked = s.premiumEnabled;
+
+  const { userKey = '' } = await chrome.storage.local.get('userKey');
+  $('apikey').value = userKey;
+
+  const tab = await activeTab();
+  const host = hostOf(tab && tab.url);
+  $('host').textContent = host || '—';
+  $('enable').checked = host in siteState ? !!siteState[host] : s.autoTranslate;
+
+  const st = tab ? await send(tab.id, { type: 'getState' }) : null;
+  $('status').textContent = statusText(st);
+
+  // The popup is usually closed during translation, so show the last persisted
+  // quota rather than relying on a live message arriving while it's open.
+  if (s.premiumEnabled) {
+    const { premiumRemaining } = await chrome.storage.local.get('premiumRemaining');
+    $('status').textContent = typeof premiumRemaining === 'number'
+      ? `Premium active — ~${Math.max(0, Math.round(premiumRemaining / 1000))}K tokens left this month.`
+      : 'Premium translation enabled.';
   }
-  els.host.textContent = host || 'Not a translatable page';
 
-  const settings = await getSettings();
-  fillSelect(els.targetLang, LANGUAGES, settings.targetLang);
-  fillSelect(
-    els.targetCurrency,
-    [...FRANKFURTER_SUPPORTED].sort().map((c) => [c, c]),
-    settings.targetCurrency,
-  );
-  els.enable.checked = Boolean(settings.enabledHosts[host]);
-
-  const usable = Boolean(host);
-  els.enable.disabled = !usable;
-
-  els.enable.addEventListener('change', async () => {
-    await setHostEnabled(host, els.enable.checked);
-    await sendToTab(els.enable.checked ? MSG.ENABLE_SITE : MSG.DISABLE_SITE);
+  // Reflect live progress (model download %, translating, done) for this tab's host.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'status' || (msg.host && msg.host !== host)) return;
+    const t = liveStatusText(msg);
+    if (t) $('status').textContent = t;
   });
 
-  els.targetLang.addEventListener('change', async () => {
-    await setSettings({ targetLang: els.targetLang.value });
-    if (els.enable.checked) await sendToTab(MSG.RERUN);
+  // --- wiring ---
+  $('enable').addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const cur = (await chrome.storage.sync.get('siteState')).siteState || {};
+    cur[host] = enabled;
+    await chrome.storage.sync.set({ siteState: cur });
+    await send(tab.id, { type: enabled ? 'apply' : 'disable' });
+    $('status').textContent = enabled ? 'Translating…' : 'Showing original.';
   });
 
-  els.targetCurrency.addEventListener('change', async () => {
-    await setSettings({ targetCurrency: els.targetCurrency.value });
-    if (els.enable.checked) await sendToTab(MSG.RERUN);
+  async function saveSettings() {
+    const settings = {
+      targetLanguage: $('lang').value,
+      targetCurrency: $('ccy').value,
+      glossaryEnabled: $('gloss').checked,
+      sizeEnabled: $('size').checked,
+      premiumEnabled: $('premium').checked,
+      autoTranslate: true
+    };
+    await chrome.storage.sync.set({ settings });
+    return settings;
+  }
+
+  // Language/currency changes need a clean re-pass — reload the tab so the page
+  // re-translates from scratch with the new target.
+  async function saveAndReload() {
+    await saveSettings();
+    if (tab) chrome.tabs.reload(tab.id);
+    window.close();
+  }
+
+  $('lang').addEventListener('change', saveAndReload);
+  $('ccy').addEventListener('change', saveAndReload);
+  // Size conversion adds inline annotations, so reload to apply/remove them on
+  // already-rendered content (matches the currency toggle's behavior).
+  $('size').addEventListener('change', saveAndReload);
+  // Switching the translation backend needs a clean re-pass, like changing target.
+  $('premium').addEventListener('change', saveAndReload);
+  // BYOK key is read by the service worker on the next batch — no reload needed.
+  $('apikey').addEventListener('change', async (e) => {
+    await chrome.storage.local.set({ userKey: e.target.value.trim() });
+  });
+  // Glossary is applied at translate time — reload so existing text re-translates.
+  $('gloss').addEventListener('change', saveAndReload);
+  $('orig').addEventListener('change', async (e) => {
+    await send(tab.id, { type: 'showOriginal', value: e.target.checked });
   });
 }
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === MSG.STATUS) {
-    if (message.kind === STATUS_KIND.DOWNLOADING) {
-      els.status.textContent = `Downloading model… ${Math.round((message.progress || 0) * 100)}%`;
-    } else {
-      els.status.textContent = STATUS_TEXT[message.kind] ?? '';
-    }
-  }
-});
-
-init();
+document.addEventListener('DOMContentLoaded', init);

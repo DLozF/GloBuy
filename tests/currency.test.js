@@ -1,88 +1,107 @@
-import { describe, it, expect } from 'vitest';
-import {
-  parseAmount,
-  resolveCode,
-  convert,
-  findPrices,
-} from '../src/content/currency.js';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { loadModule } = require('./helpers');
 
-describe('parseAmount', () => {
-  it('parses European grouping (dot thousands, comma decimal)', () => {
-    expect(parseAmount('1.234,56')).toBe(1234.56);
-    expect(parseAmount('1 234,56')).toBe(1234.56);
-    expect(parseAmount('12,50')).toBe(12.5);
-  });
+const ccy = (opts) => loadModule('src/content/currency.js', opts).LuxeCurrency;
 
-  it('parses US grouping (comma thousands, dot decimal)', () => {
-    expect(parseAmount('1,234.56')).toBe(1234.56);
-    expect(parseAmount('12.50')).toBe(12.5);
-  });
-
-  it('treats a separator + 3 digits as thousands, not decimal', () => {
-    expect(parseAmount('1,234')).toBe(1234);
-    expect(parseAmount('1.234')).toBe(1234);
-  });
-
-  it('parses plain integers', () => {
-    expect(parseAmount('1234')).toBe(1234);
-  });
+test('findPrices: explicit symbol', () => {
+  const p = ccy().findPrices('₩1,200,000', 'ko');
+  assert.equal(p.length, 1);
+  assert.equal(p[0].currency, 'KRW');
+  assert.equal(p[0].amount, 1200000);
 });
 
-describe('resolveCode', () => {
-  it('maps unambiguous symbols', () => {
-    expect(resolveCode('€')).toBe('EUR');
-    expect(resolveCode('£')).toBe('GBP');
-    expect(resolveCode('CHF')).toBe('CHF');
-  });
-
-  it('resolves ISO codes when supported', () => {
-    expect(resolveCode('USD')).toBe('USD');
-    expect(resolveCode('XYZ')).toBe(null);
-  });
-
-  it('disambiguates the dollar sign by TLD then default', () => {
-    expect(resolveCode('$')).toBe('USD');
-    expect(resolveCode('$', { tld: 'ca' })).toBe('CAD');
-  });
-
-  it('disambiguates the yen/yuan sign by source language', () => {
-    expect(resolveCode('¥', { sourceLang: 'ja' })).toBe('JPY');
-    expect(resolveCode('¥', { sourceLang: 'zh' })).toBe('CNY');
-  });
-
-  it('disambiguates the krone/krona sign by source language', () => {
-    expect(resolveCode('kr', { sourceLang: 'sv' })).toBe('SEK');
-    expect(resolveCode('kr', { sourceLang: 'da' })).toBe('DKK');
-  });
+test('findPrices: 원 suffix', () => {
+  const p = ccy().findPrices('850,000원', 'ko');
+  assert.equal(p[0].currency, 'KRW');
+  assert.equal(p[0].amount, 850000);
 });
 
-describe('convert', () => {
-  const rates = { EUR: 1, USD: 1.1, GBP: 0.85 };
-
-  it('converts through the EUR base', () => {
-    expect(convert(100, 'EUR', 'USD', rates)).toBeCloseTo(110);
-    expect(convert(110, 'USD', 'EUR', rates)).toBeCloseTo(100);
-  });
-
-  it('returns the amount unchanged for same currency', () => {
-    expect(convert(50, 'USD', 'USD', rates)).toBe(50);
-  });
-
-  it('returns null for unknown currencies', () => {
-    expect(convert(50, 'EUR', 'JPY', rates)).toBe(null);
-  });
+test('findPrices: ambiguous ¥ resolved by language hint', () => {
+  assert.equal(ccy().findPrices('¥5,000', 'ja')[0].currency, 'JPY');
+  assert.equal(ccy().findPrices('¥5,000', 'zh')[0].currency, 'CNY');
 });
 
-describe('findPrices', () => {
-  it('detects symbol-before and symbol-after prices', () => {
-    expect(findPrices('$1,234.56', {})).toEqual([{ code: 'USD', amount: 1234.56 }]);
-    expect(findPrices('1 234,56 €', {})).toEqual([{ code: 'EUR', amount: 1234.56 }]);
-  });
+test('findPrices: ISO code', () => {
+  const p = ccy().findPrices('1,000 USD', 'ko');
+  assert.equal(p[0].currency, 'USD');
+  assert.equal(p[0].amount, 1000);
+});
 
-  it('detects multiple prices in one string', () => {
-    expect(findPrices('was €100 now €80', {})).toEqual([
-      { code: 'EUR', amount: 100 },
-      { code: 'EUR', amount: 80 },
-    ]);
+test('findPrices: bare number only converts with an inferred currency', () => {
+  assert.equal(ccy().findPrices('2,500,000', 'ko', null).length, 0);
+  const p = ccy().findPrices('2,500,000', 'ko', 'KRW');
+  assert.equal(p[0].currency, 'KRW');
+  assert.equal(p[0].amount, 2500000);
+});
+
+test('findPrices: bare-number guards skip counts/dates/units/years/phones', () => {
+  for (const s of ['1,234명', '1,000개', '3,200점', '2,024년', '1,500ml', '2,500 km', '2024', '010-1234-5678']) {
+    assert.equal(ccy().findPrices(s, 'ko', 'KRW').length, 0, `should skip: ${s}`);
+  }
+});
+
+test('findPrices: marked price wins over the bare sub-match', () => {
+  const p = ccy().findPrices('850,000원', 'ko', 'KRW');
+  assert.equal(p.length, 1);
+  assert.equal(p[0].currency, 'KRW');
+});
+
+test('inferSourceCurrency: language hint', () => {
+  const C = ccy();
+  assert.equal(C.inferSourceCurrency('ko'), 'KRW');
+  assert.equal(C.inferSourceCurrency('ja'), 'JPY');
+  assert.equal(C.inferSourceCurrency('zh'), 'CNY');
+});
+
+test('inferSourceCurrency: TLD fallback when language is unknown', () => {
+  const C = ccy({ location: { hostname: 'shop.example.co.kr' } });
+  assert.equal(C.inferSourceCurrency('en'), 'KRW');
+});
+
+test('inferSourceCurrency: og:locale fallback', () => {
+  const C = ccy({
+    location: { hostname: 'example.com' },
+    document: { querySelector: (s) => (s.includes('og:locale') ? { getAttribute: () => 'ja_JP' } : null) }
   });
+  assert.equal(C.inferSourceCurrency('en'), 'JPY');
+});
+
+test('inferSourceCurrency: null when nothing matches (keeps bare conversion off)', () => {
+  const C = ccy({ location: { hostname: 'example.com' } });
+  assert.equal(C.inferSourceCurrency('en'), null);
+});
+
+test('inferSourceCurrency: Vietnamese -> VND (language and .vn TLD)', () => {
+  assert.equal(ccy().inferSourceCurrency('vi'), 'VND');
+  assert.equal(ccy({ location: { hostname: 'shop.example.vn' } }).inferSourceCurrency('en'), 'VND');
+});
+
+test('findPrices: Vietnamese đ / ₫ with dot-thousands grouping', () => {
+  const C = ccy();
+  const a = C.findPrices('1.500.000đ', 'vi');
+  assert.equal(a[0].currency, 'VND');
+  assert.equal(a[0].amount, 1500000);
+  const b = C.findPrices('₫500.000', 'vi');
+  assert.equal(b[0].currency, 'VND');
+  assert.equal(b[0].amount, 500000);
+});
+
+test('findPrices: bare dot-grouped numbers convert only for VND locale', () => {
+  const C = ccy();
+  // VND-inferred site: bare "7.000" / "1.500.000" are prices.
+  const a = C.findPrices('7.000', 'vi', 'VND');
+  assert.equal(a.length, 1);
+  assert.equal(a[0].amount, 7000);
+  assert.equal(C.findPrices('1.500.000', 'vi', 'VND')[0].amount, 1500000);
+  // KRW-inferred site (comma-grouping): a dot-grouped number is NOT a bare price.
+  assert.equal(C.findPrices('1.500.000', 'ko', 'KRW').length, 0);
+});
+
+test('parseAmount via findPrices: dot-thousands and mixed EU grouping', () => {
+  const C = ccy();
+  assert.equal(C.findPrices('€2.350', 'en')[0].amount, 2350);      // was mis-parsed as 2.35
+  assert.equal(C.findPrices('€1.234,56', 'en')[0].amount, 1234.56); // EU decimal
+  assert.equal(C.findPrices('$1,234.56', 'en')[0].amount, 1234.56); // US decimal
+  assert.equal(C.findPrices('₩1,200,000', 'ko')[0].amount, 1200000); // unchanged
 });
