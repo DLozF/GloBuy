@@ -1,7 +1,7 @@
-﻿{
+{
   "manifest_version": 3,
   "name": "Globuy — Full-Page Translator & Currency Converter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Fully translates foreign luxury/resale sites (incl. scroll-loaded content) and converts prices to your currency, inline.",
   "permissions": ["storage", "tabs"],
   "host_permissions": ["<all_urls>"],

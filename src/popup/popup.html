@@ -23,7 +23,7 @@
     </label>
   </section>
 
-  <section class="row toggle-row">
+  <section class="row toggle-row" id="premium-row">
     <label for="premium">Premium translation</label>
     <label class="switch">
       <input type="checkbox" id="premium" />
@@ -33,9 +33,10 @@
   <p class="hint" id="premium-hint">Higher-quality cloud translation. When on, page text leaves your device. Free monthly quota, then it uses your own API key below.</p>
 
   <section class="row sub" id="apikey-row">
-    <label for="apikey">Your DeepSeek API key</label>
+    <label for="apikey">Your translation API key</label>
     <input type="password" id="apikey" placeholder="optional" autocomplete="off" />
   </section>
+  <p class="hint" id="apikey-hint">Optional. Stored locally in your browser and used only to bill your own translations against your key.</p>
 
   <section class="row">
     <label for="lang">Translate into</label>

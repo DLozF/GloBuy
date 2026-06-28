@@ -10,6 +10,13 @@
     premiumEnabled: false
   };
 
+  // Premium (cloud) translation is feature-flagged OFF for the v1 on-device-only
+  // build. The premium code path below stays in source but is unreachable while
+  // this is false: it's the only place usePremium is set, so every `if (usePremium)`
+  // branch (translateNodes, translateAttrs, translateTitle, translateQuery) is
+  // dead and the on-device path is the only one that runs. Flip to true for v1.1.
+  const PREMIUM_ENABLED = false;
+
   const langBase = (l) => (l || '').split('-')[0].toLowerCase();
 
   // Developer logging, off by default. Enable in the content-script console with
@@ -110,13 +117,21 @@
   async function ensureTranslator() {
     usePremium = false;
     premiumNotified = false;
+    const premium = PREMIUM_ENABLED && settings.premiumEnabled;
     // Language detection (a separate, lightweight on-device API) runs for both
-    // tiers — premium needs srcLang to pick the right glossary and currency hint.
+    // tiers — when it works it picks the right glossary and currency hint. But
+    // premium must NOT depend on it: older Chrome (premium's target audience)
+    // may lack the on-device LanguageDetector entirely. So when detection can't
+    // name the language, on-device bails ('nolang') but premium sends
+    // srcLang:'auto' and lets the proxy detect the source itself.
     if (!srcLang) srcLang = langBase(await LuxeTranslator.detectLanguage(detectionSample()));
-    if (!srcLang || srcLang === 'und') { notify('nolang'); return false; }
-    if (srcLang === tgtLang) { notify('same'); return false; }
+    if (srcLang && srcLang !== 'und' && srcLang === tgtLang) { notify('same'); return false; }
+    if (!srcLang || srcLang === 'und') {
+      if (!premium) { notify('nolang'); return false; }
+      srcLang = 'auto'; // the proxy's system prompt detects the source language
+    }
 
-    if (settings.premiumEnabled) {
+    if (premium) {
       // The LLM call goes through the service worker; no on-device model to
       // download. A truthy sentinel keeps the `if (!translator)` guards happy.
       usePremium = true;
@@ -393,7 +408,9 @@
   }
 
   async function translateQuery(text) {
-    if (settings.premiumEnabled && usePremium) {
+    // Reverse-translating the query needs a known source language; skip premium
+    // when the source was left to the proxy ('auto') — there's no target to give.
+    if (settings.premiumEnabled && usePremium && srcLang && srcLang !== 'auto') {
       const r = await LuxeTranslator.translateRemote([{ text }], tgtLang, srcLang);
       if (r.ok && r.results[0]) return r.results[0];
       handlePremiumFailure(r.reason);
@@ -418,7 +435,9 @@
 
   async function setupSearch() {
     if (searchInstalled || !globalThis.LuxeSearch) return;
-    if (!srcLang || srcLang === tgtLang) return;
+    // 'auto' means the source language is unknown to us (proxy-detected), so
+    // there's nothing to reverse-translate the query into — leave search alone.
+    if (!srcLang || srcLang === tgtLang || srcLang === 'auto') return;
     if (!(await ensureReverseTranslator())) return;
     LuxeSearch.install({ translateQuery });
     searchInstalled = true;

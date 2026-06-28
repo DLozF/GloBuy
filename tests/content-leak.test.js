@@ -17,7 +17,13 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 
-const src = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+const src = (rel) => {
+  let code = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  code = code.replace(/import\s+[\s\S]*?\s+from\s+['"].*?['"];?/g, '');
+  code = code.replace(/\bexport\s+(function|const|let|var|class|async\s+function)\b/g, '$1');
+  code = code.replace(/\bexport\s+{[^}]*};?/g, '');
+  return code;
+};
 const evalGlobal = (code) => (0, eval)(code); // run in global scope; bare names -> global
 
 function setupEnv() {

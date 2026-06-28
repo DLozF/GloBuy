@@ -16,7 +16,7 @@ const luxeGlobals = {
 };
 
 module.exports = [
-  { ignores: ['**/node_modules/**', '**/.wrangler/**'] },
+  { ignores: ['**/node_modules/**', '**/.wrangler/**', 'dist/**', '**/dist/**'] },
   js.configs.recommended,
   {
     // Browser content scripts + background service worker.
