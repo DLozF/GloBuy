@@ -92,5 +92,17 @@ module.exports = [
     rules: {
       'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }]
     }
+  },
+  {
+    // Node ESM build/dev scripts.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }]
+    }
   }
 ];
