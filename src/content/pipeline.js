@@ -85,7 +85,6 @@ async function processRoot(root) {
 
 async function processRoots(roots) {
   for (const root of roots) {
-    // eslint-disable-next-line no-await-in-loop
     await processRoot(root);
   }
 }

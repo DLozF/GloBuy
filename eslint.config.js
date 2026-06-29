@@ -16,7 +16,7 @@ const globuyGlobals = {
 };
 
 module.exports = [
-  { ignores: ['**/node_modules/**', '**/.wrangler/**', 'dist/**', '**/dist/**'] },
+  { ignores: ['**/node_modules/**', '**/.wrangler/**', 'dist/**', '**/dist/**', '.claude/**'] },
   js.configs.recommended,
   {
     // Browser content scripts + background service worker.

@@ -56,15 +56,15 @@ function statusText(st) {
 // model download in particular reports progress, which we surface as a percent.
 function liveStatusText(msg) {
   switch (msg.kind) {
-    case ‘DOWNLOADING’: {
+    case 'DOWNLOADING': {
       const pct = Math.max(0, Math.min(100, Math.round((Number(msg.progress) || 0) * 100)));
       return `Downloading translation model… ${pct}%`;
     }
-    case ‘READY’: return ‘Translation complete.’;
-    case ‘IDLE’: return ‘Showing original.’;
-    case ‘UNSUPPORTED_API’: return ‘On-device translator unavailable — update to Chrome 138+.’;
-    case ‘UNSUPPORTED_LANG’: return `Language pair not available on-device.`;
-    case ‘NEEDS_ACTIVATION’: return ‘Click "Translate this page" button to begin.’;
+    case 'READY': return 'Translation complete.';
+    case 'IDLE': return 'Showing original.';
+    case 'UNSUPPORTED_API': return 'On-device translator unavailable — update to Chrome 138+.';
+    case 'UNSUPPORTED_LANG': return 'Language pair not available on-device.';
+    case 'NEEDS_ACTIVATION': return 'Click "Translate this page" button to begin.';
     default: return null;
   }
 }
