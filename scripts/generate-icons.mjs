@@ -1,4 +1,3 @@
-/* eslint-env node */
 import sharp from 'sharp';
 import { readFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
