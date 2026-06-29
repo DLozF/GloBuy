@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 // build. The proxy/premium code remains in the repo as a portfolio artifact but
 // the UI (toggle, API-key row, hint) and the premium code path stay dormant.
 // Flip to true to re-enable the opt-in cloud tier (planned for v1.1).
-const PREMIUM_ENABLED = false;
+const PREMIUM_ENABLED = true;
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'KRW', 'CNY', 'INR', 'VND', 'CAD', 'AUD', 'CHF', 'HKD', 'SGD'];
 const LANGUAGES = [

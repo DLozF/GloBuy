@@ -10,9 +10,8 @@ import {
   ensureTranslator,
   translateBatch,
 } from './translator.js';
-import { collectTextNodes, writeTranslation, revertAll } from './dom-walker.js';
+import { collectTextNodes, writeTranslation, revertAll, observe } from './dom-walker.js';
 import { annotateRoot, removeAnnotations } from './currency.js';
-import { startObserver, stopObserver } from './observer.js';
 import { showActivationButton, hideActivationButton } from './activation.js';
 import '../data/glossary.js';
 import './sizes.js';
@@ -29,6 +28,8 @@ const state = {
   ctx: null,
   seenText: null,   // WeakSet — tracks already-translated text nodes
   seenSize: null,   // WeakSet — tracks already-annotated size nodes
+  seenCcy: null,    // WeakSet — tracks already-annotated currency nodes
+  observer: null,   // MutationObserver from observe()
 };
 
 function reportStatus(kind, extra = {}) {
@@ -69,6 +70,7 @@ async function translateRoot(root) {
     slice.forEach((node, j) => {
       if (node.isConnected && out[j] != null && out[j] !== node.nodeValue) {
         writeTranslation(node, out[j]);
+        state.seenText.add(node);
       }
     });
   }
@@ -77,7 +79,7 @@ async function translateRoot(root) {
 /** Translate (if applicable) and annotate prices and sizes under a root. */
 async function processRoot(root) {
   await translateRoot(root);
-  if (state.ctx) annotateRoot(root, state.ctx);
+  if (state.ctx) annotateRoot([root], state.ctx);
   if (state.settings?.sizeEnabled && globalThis.GlobuySizes) {
     await globalThis.GlobuySizes.annotate([root], { seen: state.seenSize });
   }
@@ -107,25 +109,26 @@ export async function start(settings) {
   state.settings = settings;
   state.seenText = new WeakSet();
   state.seenSize = new WeakSet();
+  state.seenCcy = new WeakSet();
 
   // Currency rates can apply even when translation is unavailable.
   const table = await getRates();
   state.rates = table;
-  const tldParts = location.hostname.split('.');
   state.ctx = table
     ? {
-        rates: table.rates,
-        targetCurrency: settings.targetCurrency,
-        sourceLang: '',
-        tld: tldParts[tldParts.length - 1] || '',
-        locale: navigator.language,
+        fromHint: '',
+        target: settings.targetCurrency,
+        seen: state.seenCcy,
+        convert: (from, to) => chrome.runtime.sendMessage({ type: 'convert', from, to }),
       }
     : null;
 
   if (!apiSupported()) {
     reportStatus(STATUS_KIND.UNSUPPORTED_API);
-    if (state.ctx) annotateRoot(document.body, state.ctx);
-    startObserver(processRoots);
+    if (state.ctx) annotateRoot([document.body], state.ctx);
+    state.observer = observe((added) => {
+      if (added.length) processRoots(added).catch(() => {});
+    });
     return;
   }
 
@@ -133,7 +136,7 @@ export async function start(settings) {
   const sample = (document.body.innerText || '').slice(0, 1200);
   const source = await detectLanguage(sample);
   state.sourceLang = source;
-  if (state.ctx) state.ctx.sourceLang = source || '';
+  if (state.ctx) state.ctx.fromHint = source || '';
 
   const target = settings.targetLang;
   const translationNeeded = source && source !== target;
@@ -161,13 +164,28 @@ export async function start(settings) {
     globalThis.GlobuySearch.install({ translateQuery: (q) => reverseTranslateQuery(q) });
   }
 
+  // Start the observer BEFORE the initial scan so mutations from the site's
+  // hydration/reconciliation that happen mid-batch are caught immediately.
+  state.observer = observe((added, changed) => {
+    const toProcess = new Set(added.filter(n => n.isConnected));
+    for (const n of changed) {
+      if (!n.isConnected) continue;
+      if (n._ltTrans !== undefined && n.nodeValue !== n._ltTrans) {
+        n.nodeValue = n._ltTrans;                     // re-apply cached translation
+      } else if (n._ltTrans === undefined && n._ltOrig === undefined) {
+        const parent = n.parentNode;                  // site mutated unseen content
+        if (parent) toProcess.add(parent);
+      }
+    }
+    if (toProcess.size) processRoots([...toProcess]).catch(() => {});
+  });
+
   await processRoot(document.body);
-  if (state.translator || translationNeeded === false) reportStatus(STATUS_KIND.READY);
-  startObserver(processRoots);
+  if (state.translator || !translationNeeded) reportStatus(STATUS_KIND.READY);
 }
 
 export function stop() {
-  stopObserver();
+  if (state.observer) { state.observer.disconnect(); state.observer = null; }
   hideActivationButton();
   revertAll();
   removeAnnotations(document);
@@ -177,6 +195,8 @@ export function stop() {
   state.ctx = null;
   state.seenText = null;
   state.seenSize = null;
+  state.seenCcy = null;
+  state.observer = null;
   reportStatus(STATUS_KIND.IDLE);
 }
 

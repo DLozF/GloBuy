@@ -1,11 +1,11 @@
 :root {
-  --bg: #0a1628;
-  --panel: #0d1f35;
-  --line: #1e3a5f;
-  --text: #e8f0f8;
-  --muted: #7a9ab8;
-  --teal: #0fb5a8;
-  --teal-dim: #0a8a7f;
+  --bg: #ffffff;
+  --panel: #f4f4f5;
+  --line: #e4e4e7;
+  --text: #111111;
+  --muted: #71717a;
+  --accent: #111111;
+  --accent-dim: #3f3f46;
 }
 
 * { box-sizing: border-box; }
@@ -26,15 +26,10 @@ body {
   margin-bottom: 14px;
 }
 
-.logo {
+.logo-img {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  color: #0a1628;
-  background: linear-gradient(135deg, var(--teal), #3dd5c8);
 }
 
 h1 { font-size: 15px; margin: 0; letter-spacing: 0.2px; }
@@ -57,7 +52,7 @@ h1 { font-size: 15px; margin: 0; letter-spacing: 0.2px; }
 .toggle-row label:first-child { font-weight: 600; }
 
 select {
-  background: #0a1628;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -67,7 +62,7 @@ select {
 }
 
 input[type="password"], input[type="text"] {
-  background: #0a1628;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -83,14 +78,14 @@ input[type="password"], input[type="text"] {
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider {
   position: absolute; inset: 0; cursor: pointer;
-  background: #1e3a5f; border-radius: 999px; transition: 0.18s;
+  background: #d4d4d8; border-radius: 999px; transition: 0.18s;
 }
 .slider::before {
   content: ""; position: absolute; height: 16px; width: 16px;
   left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.18s;
 }
 .switch.sm .slider::before { height: 14px; width: 14px; }
-input:checked + .slider { background: var(--teal); }
+input:checked + .slider { background: var(--accent); }
 input:checked + .slider::before { transform: translateX(18px); }
 .switch.sm input:checked + .slider::before { transform: translateX(16px); }
 
