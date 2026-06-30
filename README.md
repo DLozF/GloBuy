@@ -38,14 +38,16 @@ It also goes beyond on-page text:
 - **Default tier: no backend, $0 running cost, fully on-device.**
 - **Translation:** Chrome's built-in **on-device Translator + LanguageDetector
   APIs** (Chrome 138+) — free, local, no API key.
-- **Optional Premium tier:** an opt-in toggle routes translation through a hosted
-  proxy (a Cloudflare Worker in `proxy/`) to an OpenAI-compatible LLM (currently
-  **DeepSeek**) for higher jargon quality — the engine is config-driven
-  (`LLM_BASE_URL`/`LLM_MODEL`). The proxy holds the API key and enforces a free
-  monthly quota;
-  the extension authenticates with an anonymous install token. Page text leaves
-  the device only while Premium is on — see [PRIVACY.md](./PRIVACY.md). Falls back
-  to on-device automatically when the quota is out or the proxy is unreachable.
+- **Premium tier (planned for v2 — disabled in v1):** a future opt-in toggle will
+  route translation through a hosted proxy (a Cloudflare Worker in `proxy/`) to an
+  OpenAI-compatible LLM (currently **DeepSeek**) for higher jargon quality — the
+  engine is config-driven (`LLM_BASE_URL`/`LLM_MODEL`). The proxy holds the API
+  key and enforces a free monthly quota; the extension authenticates with an
+  anonymous install token. **v1 ships on-device only:** this code is present in
+  the repo but feature-flagged off, the popup exposes no Premium UI, and **no
+  page text ever leaves your device** — see [PRIVACY.md](./PRIVACY.md). When
+  enabled in v2 it will fall back to on-device automatically if the quota is out
+  or the proxy is unreachable.
   *(`proxy/`, `src/content/translator.js` → `translateRemote`, `src/background.js`
   → `premiumTranslate`)*
 - **Currency:** [Frankfurter](https://frankfurter.dev) API — free, no key — with
@@ -101,10 +103,11 @@ icons/                    16 / 48 / 128 px
 
 ## Roadmap
 
-- **Premium tier (shipped):** opt-in OpenAI-compatible LLM backend (currently
-  **DeepSeek**) via a hosted proxy (`proxy/`) for best-in-class jargon quality,
-  with a free monthly quota, BYOK fallback, and automatic fall-back to on-device.
-  Swap providers via `LLM_BASE_URL`/`LLM_MODEL`. See **Architecture** above and
+- **Premium tier (planned for v2):** opt-in OpenAI-compatible LLM backend
+  (currently **DeepSeek**) via a hosted proxy (`proxy/`) for best-in-class jargon
+  quality, with a free monthly quota, BYOK fallback, and automatic fall-back to
+  on-device. Disabled in v1 (on-device only). Swap providers via
+  `LLM_BASE_URL`/`LLM_MODEL`. See **Architecture** above and
   [PRIVACY.md](./PRIVACY.md).
 - Premium follow-ups: paid subscription (Stripe) for the proxy, plus listing
   summaries and in-image OCR.

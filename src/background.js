@@ -158,3 +158,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // 'status' messages are for any open popup; nothing to do here.
   return false;
 });
+
+// --- One-time migrations ---------------------------------------------------
+//
+// Earlier builds defaulted sites to ON (autoTranslate); the popup now defaults
+// every site to OFF. Clear any remembered per-host "on" choices once so existing
+// installs start fresh with all sites off. Gated by a local flag so it runs
+// exactly once and never wipes the user's later per-site choices on reload.
+async function runMigrations() {
+  const FLAG = 'migratedDefaultOff';
+  const { [FLAG]: done } = await chrome.storage.local.get(FLAG);
+  if (done) return;
+  const { settings } = await chrome.storage.sync.get('settings');
+  if (settings) {
+    await chrome.storage.sync.set({
+      settings: { ...settings, enabledHosts: {}, autoTranslate: false },
+    });
+  }
+  await chrome.storage.local.set({ [FLAG]: true });
+}
+
+chrome.runtime.onInstalled.addListener(() => { runMigrations(); });
