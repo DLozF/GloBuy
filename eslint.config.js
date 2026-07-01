@@ -95,7 +95,7 @@ module.exports = [
   },
   {
     // Node ESM build/dev scripts.
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'store-assets/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

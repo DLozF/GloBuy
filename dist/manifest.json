@@ -5,8 +5,7 @@
   "version": "1.0.0",
   "minimum_chrome_version": "138",
   "permissions": [
-    "storage",
-    "tabs"
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"

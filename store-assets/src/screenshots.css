@@ -1,0 +1,120 @@
+/* Shared styles for the 1280x800 Chrome Web Store screenshots.
+   Palette + Inter pulled from the real extension (src/popup/popup.css). */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("inter-latin.woff2") format("woff2");
+}
+:root {
+  --teal: #1EC6AA;            /* extension/logo accent — popup toggles */
+  --purple: #1ec6aa;          /* website headline accent */
+  --purple-soft: #4fd6bd;
+  --amber: #ce7e2e;           /* website "translated / converted" highlight */
+  --ink: #111111;
+  --muted: #6b6b72;
+  --muted-2: #9ca3af;
+  --line: #ececec;
+  --surface: #f3f4f6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1280px; height: 800px; overflow: hidden; }
+body {
+  font-family: "Inter", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(70% 80% at 88% 2%, rgba(30,198,170,0.07) 0%, rgba(30,198,170,0) 46%),
+    radial-gradient(60% 70% at 2% 102%, rgba(30,198,170,0.05) 0%, rgba(30,198,170,0) 50%),
+    #ffffff;
+  color: var(--ink);
+}
+
+/* headline band */
+.head { text-align: center; padding: 58px 80px 0; }
+.eyebrow {
+  display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; color: var(--muted-2); margin-bottom: 14px;
+}
+h1 { font-size: 44px; font-weight: 900; line-height: 1.06; letter-spacing: -0.035em; color: var(--ink); }
+h1 em { color: var(--purple); font-style: normal; }
+.sub { margin-top: 14px; font-size: 18.5px; font-weight: 500; color: var(--muted); }
+
+/* browser window */
+.stage { display: flex; justify-content: center; margin-top: 40px; position: relative; }
+.browser {
+  width: 1080px; background: #fff; border-radius: 14px;
+  border: 1px solid #ececec;
+  box-shadow: 0 30px 60px rgba(17,17,17,0.12), 0 6px 16px rgba(17,17,17,0.06);
+  overflow: hidden;
+}
+.bar { height: 46px; background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+.url { margin-left: 14px; flex: 1; background: #fff; border: 1px solid var(--line); border-radius: 100px; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 12.5px; color: var(--muted); }
+.url .lock { width: 11px; height: 11px; border-radius: 2px; background: var(--muted-2); display: inline-block; }
+.viewport { background: #fff; color: var(--ink); }
+
+/* site nav inside the page */
+.nav { display: flex; align-items: center; gap: 26px; padding: 16px 28px; border-bottom: 1px solid var(--line); }
+.nav .logo { font-size: 17px; font-weight: 800; letter-spacing: 0.02em; color: var(--ink); margin-right: 6px; }
+.nav a { font-size: 13.5px; font-weight: 600; color: #3a3a3a; }
+.nav .spacer { flex: 1; }
+
+/* product grid + cards */
+.grid { display: grid; gap: 22px; padding: 26px 28px 30px; }
+.grid.c3 { grid-template-columns: repeat(3, 1fr); }
+.ph { border-radius: 10px; background: #f4f1ea; overflow: hidden; }
+.ph img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.ph img.top { object-position: center top; }      /* keep collar/shoulders on garments */
+.ph img.contain { object-fit: contain; }           /* show the whole product on white */
+.brand { margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-2); }
+.title { margin-top: 4px; font-size: 14.5px; font-weight: 600; color: var(--ink); line-height: 1.32; }
+.price { margin-top: 9px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.conv { color: var(--amber); font-weight: 700; }
+
+/* translated-from pill */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; color: #d7f6ef;
+  border: 1px solid rgba(30,198,170,0.45); background: rgba(30,198,170,0.12);
+  padding: 7px 14px; border-radius: 100px;
+}
+.pill .tk { color: var(--teal); font-weight: 800; }
+
+/* floating GloBuy popup (mirrors the real popup UI) */
+.popup {
+  width: 300px; background: #fff; border-radius: 14px; overflow: hidden;
+  box-shadow: 0 28px 60px rgba(0,0,0,0.34), 0 4px 14px rgba(0,0,0,0.2);
+  border: 1px solid var(--line); color: var(--ink);
+}
+.popup .ph-hdr { display: flex; align-items: center; gap: 9px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.popup .ph-hdr svg { width: 22px; height: 22px; }
+.popup .ph-hdr b { font-size: 16px; font-weight: 800; }
+.popup .ph-hdr .ph-logo { height: 21px; width: auto; display: block; }
+.popup .ph-hdr b i { color: var(--teal); font-style: normal; }
+.pp-card { padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.pp-row { display: flex; align-items: center; justify-content: space-between; }
+.pp-label { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.pp-host { margin-top: 5px; font-size: 12px; color: var(--muted); }
+.pp-val { font-size: 13px; font-weight: 600; color: var(--muted); }
+.sw { width: 38px; height: 22px; border-radius: 100px; background: var(--teal); position: relative; flex: none; }
+.sw.lg { width: 44px; height: 26px; }
+.sw::after { content: ""; position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+.sw.lg::after { width: 22px; height: 22px; }
+.sw.off { background: #dcd7cd; }
+.sw.off::after { right: auto; left: 2px; }
+.pp-opt { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; }
+.pp-opt + .pp-opt { border-top: 1px solid var(--line); }
+.pp-section { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted-2); padding: 11px 16px 3px; }
+
+/* annotation callout (amber "added info") */
+.callout {
+  position: absolute; display: flex; align-items: center; gap: 9px;
+  background: #fbf2e6; color: #9a5e1f; border: 1px solid rgba(206,126,46,0.35);
+  font-size: 13.5px; font-weight: 700;
+  padding: 9px 15px; border-radius: 100px; box-shadow: 0 10px 26px rgba(17,17,17,0.08);
+}
+
+/* trust row (privacy shot) — grey middot text, matching the site */
+.chips { display: flex; justify-content: center; gap: 14px; margin-top: 28px; font-size: 15px; font-weight: 500; color: var(--muted); }
+.chips .dotsep { color: var(--muted-2); }

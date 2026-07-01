@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<link rel="stylesheet" href="screenshots.css" />
+<style>
+  .browser { width: 1000px; }
+  .stage { margin-top: 38px; }
+  .detail { display: grid; grid-template-columns: 430px 1fr; gap: 36px; padding: 30px 32px 36px; }
+  .detail .ph { height: 340px; }
+  .d-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-2); }
+  .d-title { margin-top: 6px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); line-height: 1.18; }
+  .d-price { margin-top: 14px; font-size: 19px; font-weight: 700; color: var(--ink); }
+  .d-price .conv { font-size: 19px; }
+  .d-label { margin-top: 26px; font-size: 13px; font-weight: 700; color: var(--ink); }
+  .sizes { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .size {
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 13px; min-width: 92px;
+    font-size: 13.5px; font-weight: 600; color: var(--ink); background: #fff; text-align: center; line-height: 1.35;
+  }
+  .size.sel { border-color: var(--ink); box-shadow: 0 0 0 2px rgba(17,17,17,0.12); }
+  .size .us { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--amber); }
+  .approx { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .buy { margin-top: 22px; display: inline-flex; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700; padding: 13px 26px; border-radius: 100px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <span class="eyebrow">Size conversion</span>
+    <h1>KR / JP / EU sizes, <em>converted to US.</em></h1>
+    <div class="sub">Clothing and shoe sizes shown in US right beside the original — so you order the right fit, first try.</div>
+  </div>
+  <div class="stage">
+    <div class="browser">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url"><span class="lock"></span>seoulfit.co.kr</span></div>
+      <div class="viewport">
+        <div class="detail">
+          <div class="ph"><img src="img/apex.png" alt=""></div>
+          <div>
+            <div class="d-brand">Apex</div>
+            <div class="d-title">LAB-X Trail Sneaker — Black</div>
+            <div class="d-price">₩219,000 <span class="conv">(≈ $159)</span></div>
+            <div class="d-label">Select size</div>
+            <div class="sizes">
+              <div class="size">250mm<span class="us">≈ US 7</span></div>
+              <div class="size">255mm<span class="us">≈ US 7.5</span></div>
+              <div class="size sel">260mm<span class="us">≈ US 8</span></div>
+              <div class="size">265mm<span class="us">≈ US 8.5</span></div>
+            </div>
+            <div class="d-label">Also fits — apparel</div>
+            <div class="sizes">
+              <div class="size">EU 38<span class="us">≈ US 6</span></div>
+              <div class="size">EU 40<span class="us">≈ US 8</span></div>
+              <div class="size">EU 42<span class="us">≈ US 10</span></div>
+            </div>
+            <div class="approx">≈ Approximate — charts vary by brand and gender.</div>
+            <div class="buy">Add to cart</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

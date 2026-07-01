@@ -7,7 +7,7 @@ export default defineManifest({
     'Fully translates foreign luxury/resale sites and converts prices inline to your currency.',
   version: '1.0.0',
   minimum_chrome_version: '138',
-  permissions: ['storage', 'tabs'],
+  permissions: ['storage'],
   host_permissions: ['<all_urls>'],
   content_scripts: [
     {

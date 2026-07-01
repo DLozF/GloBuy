@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    src: url("inter-latin.woff2") format("woff2");
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1400px; height: 560px; overflow: hidden; }
+  body {
+    font-family: "Inter", Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(70% 110% at 90% 14%, rgba(118,62,230,0.09) 0%, rgba(118,62,230,0) 50%),
+      radial-gradient(60% 90% at 0% 100%, rgba(118,62,230,0.05) 0%, rgba(118,62,230,0) 55%),
+      #ffffff;
+    color: #111111; display: flex; align-items: center;
+    padding: 0 84px; gap: 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .left { width: 620px; flex: none; }
+  .mark { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
+  .mark svg { width: 46px; height: 46px; }
+  .word { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; color: #111111; }
+  .word b { color: #1EC6AA; }
+  h1 { font-size: 58px; font-weight: 900; line-height: 1.02; letter-spacing: -0.035em; color: #111111; }
+  h1 em { color: #763ee6; font-style: normal; }
+  .sub { margin-top: 24px; font-size: 20px; font-weight: 500; color: #6b6b72; line-height: 1.5; max-width: 540px; }
+  .chips { margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip {
+    font-size: 14px; font-weight: 600; color: #4b4b52;
+    border: 1px solid #e8e8ea; background: #f5f5f7;
+    padding: 8px 14px; border-radius: 100px;
+  }
+  /* floating product card cluster */
+  .stage { flex: 1; display: flex; justify-content: center; align-items: center; }
+  .browser {
+    width: 540px; background: #fff; border-radius: 16px; overflow: hidden;
+    border: 1px solid #ececec;
+    box-shadow: 0 34px 70px rgba(17,17,17,0.13), 0 8px 22px rgba(17,17,17,0.07);
+    transform: rotate(-1.4deg);
+  }
+  .bar { height: 40px; background: #f3f4f6; display: flex; align-items: center; gap: 7px; padding: 0 14px; border-bottom: 1px solid #ececec; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .url { margin-left: 12px; background: #fff; border: 1px solid #ececec; border-radius: 100px; height: 22px; flex: 1; display: flex; align-items: center; padding: 0 12px; font-size: 11.5px; color: #6b6862; }
+  .grid { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; background: #fff; }
+  .card { }
+  .ph { height: 196px; border-radius: 10px; background: #f4f1ea; overflow: hidden; }
+  .ph img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+  .ph img.top { object-position: center top; }
+  .brand { margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #9ca3af; }
+  .title { margin-top: 4px; font-size: 14px; font-weight: 600; color: #111; line-height: 1.3; }
+  .price { margin-top: 8px; font-size: 14px; font-weight: 700; color: #111; }
+  .conv { color: #ce7e2e; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="mark">
+      <svg viewBox="4 11.7 36.8 37.8" xmlns="http://www.w3.org/2000/svg">
+        <path d="m23.6 28.9v2.1l-0.9 2.1h8.8c-0.4 2.8-3.4 6.4-8.6 6.5-4.6 0.1-9-3.4-9.2-8.6-0.2-4.3 3.6-9.1 8.6-9.5 3-0.1 5.3 0.8 7.6 3.3l3.8-3c-2.6-3-6.1-5.2-10.9-5.2-7 0-12.7 5-13.8 11.6-0.9 6.5 2.6 15.4 12.9 16 6.1 0.2 12-2.9 13.7-8.1 0.7-2.1 1-4.7 0.8-7.2h-12.8z" fill="#0A1228"/>
+        <path d="m27.9 35.4c0.3-0.8 0.4-1.5 0.5-2.3h-1.1c-0.1 0.6-0.2 1.4-0.5 1.9-0.8-0.2-1.9-0.5-3.3-0.6v-1.5-2.6-3.5c0.9-0.1 2.1-0.2 3.3-0.6 0.3 0.9 0.5 1.8 0.6 2.7h1.1c-0.1-1-0.3-2-0.6-3 0.7-0.3 1.3-0.6 2-1l-0.8-0.9c-0.5 0.3-1 0.6-1.6 0.8-0.4-1-1-1.9-1.7-2.8-0.8-0.2-1.6-0.4-2.3-0.4h-1.5c-0.6 0-1.4 0.1-2.1 0.3-0.6 0.8-1.1 1.6-1.6 2.8-0.6-0.3-1.1-0.5-1.6-0.9l-0.9 0.9c0.6 0.4 1.3 0.8 2.1 1.1-0.4 1.3-0.6 2.7-0.6 4.1h-3.5l-0.1 1.3h3.6c0 1.4 0.3 2.7 0.6 4.1-0.7 0.3-1.3 0.7-1.9 1.1l0.6 0.8c0.5-0.3 1.1-0.6 1.7-0.8 0.4 1 1 2 1.6 2.7 1.1 0.2 1.6 0.3 2.2 0.3h1.4c0.6 0 1.4-0.1 2.2-0.3 0.6-0.7 1.3-1.7 1.8-2.7 0.5 0.2 1.1 0.5 1.7 0.8l0.7-0.7c-0.5-0.4-1.3-0.8-2-1.1zm-4.4-13.8c1.1 0.6 2.3 2.1 2.9 3.5-1 0.3-2 0.5-2.9 0.6v-4.1zm-1.3 0v4.1c-1 0-1.9-0.2-2.9-0.5 0.6-1.5 2.1-3.2 2.9-3.6zm-3.4 4.6c0.9 0.3 2.3 0.6 3.4 0.6v3.1h-3.9c0.1-1.3 0.2-2.6 0.5-3.7zm0.1 8.8c-0.4-1.1-0.5-2.4-0.5-3.8h3.8v3.2c-1.1 0-2.3 0.3-3.3 0.6zm0.4 0.9c0.7-0.2 1.9-0.4 2.9-0.4v4c-0.8-0.3-2.4-1.9-2.9-3.6zm4.2 3.5v-3.9c0.8 0 2.1 0.2 2.9 0.5-0.6 1.4-1.7 2.8-2.9 3.4z" fill="#1EC6AA"/>
+      </svg>
+      <span class="word">Glo<b>Buy</b></span>
+    </div>
+    <h1>Shop foreign sites<br>like they're <em>local.</em></h1>
+    <div class="sub">Fully translates Korean, Japanese, Chinese &amp; Vietnamese shopping sites — and converts every price and size as you browse.</div>
+    <div class="chips">
+      <span class="chip">On-device &amp; private</span>
+      <span class="chip">No account</span>
+      <span class="chip">Free</span>
+    </div>
+  </div>
+  <div class="stage">
+    <div class="browser">
+      <div class="bar">
+        <span class="dot" style="background:#ff5f57"></span>
+        <span class="dot" style="background:#febc2e"></span>
+        <span class="dot" style="background:#28c840"></span>
+        <span class="url">wiselux.co.kr</span>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ph"><img src="img/valere.png" alt=""></div>
+          <div class="brand">Valère</div>
+          <div class="title">Vintage Leather Tote — Authentic</div>
+          <div class="price">₩1,200,000 <span class="conv">(≈ $870)</span></div>
+        </div>
+        <div class="card">
+          <div class="ph"><img class="top" src="img/aeterna-coat.png" alt=""></div>
+          <div class="brand">Aeterna Studios</div>
+          <div class="title">Grade S Wool Coat (Like New)</div>
+          <div class="price">₩890,000 <span class="conv">(≈ $645)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

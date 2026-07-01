@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<link rel="stylesheet" href="screenshots.css" />
+<style>
+  .stage { margin-top: 40px; align-items: flex-start; gap: 56px; }
+  .popup { width: 340px; transform: scale(1.02); }
+  .pts { width: 470px; padding-top: 8px; }
+  .pt { display: flex; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .pt:last-child { border-bottom: 0; }
+  .pt .ic { width: 40px; height: 40px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .pt .ic span { width: 16px; height: 16px; border-radius: 4px; }
+  .ic.p1 { background: rgba(30,198,170,0.12); } .ic.p1 span { background: var(--purple); }
+  .ic.p2 { background: rgba(206,126,46,0.14); } .ic.p2 span { background: var(--amber); }
+  .ic.p3 { background: rgba(30,198,170,0.16); } .ic.p3 span { background: var(--teal); }
+  .pt h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+  .pt p { margin-top: 5px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <span class="eyebrow">Private by design</span>
+    <h1>On-device. <em>Nothing leaves your browser.</em></h1>
+    <div class="sub">Translation runs locally with Chrome's built-in AI — no account, no tracking, no servers.</div>
+  </div>
+  <div class="stage">
+    <div class="popup">
+      <div class="ph-hdr">
+        <img class="ph-logo" src="globuy-logo.svg" alt="GloBuy" />
+      </div>
+      <div class="pp-card"><div class="pp-row"><span class="pp-label">Translate this site</span><span class="sw lg"></span></div><div class="pp-host">seoulfit.co.kr</div></div>
+      <div class="pp-card"><div class="pp-row"><span class="pp-label">Translate into</span><span class="pp-val">English ▾</span></div></div>
+      <div class="pp-card"><div class="pp-row"><span class="pp-label">Convert prices to</span><span class="pp-val">USD ▾</span></div></div>
+      <div class="pp-section">Options</div>
+      <div class="pp-card" style="padding-top:2px;padding-bottom:6px">
+        <div class="pp-opt"><span class="pp-label">Luxury glossary</span><span class="sw"></span></div>
+        <div class="pp-opt"><span class="pp-label">Convert sizes to US</span><span class="sw"></span></div>
+        <div class="pp-opt"><span class="pp-label">Show original text</span><span class="sw off"></span></div>
+      </div>
+    </div>
+    <div class="pts">
+      <div class="pt"><div class="ic p1"><span></span></div><div><h3>On-device translation</h3><p>Page text is translated locally by Chrome's built-in Translator — it's never sent to us or any third party.</p></div></div>
+      <div class="pt"><div class="ic p2"><span></span></div><div><h3>Only currency codes go out</h3><p>For live rates we send a pair like KRW→USD to a public API. No prices, content, URLs, or identifiers.</p></div></div>
+      <div class="pt"><div class="ic p3"><span></span></div><div><h3>No account, no tracking</h3><p>No sign-in, no analytics, no ads. Your settings stay in your own browser profile.</p></div></div>
+    </div>
+  </div>
+  <div class="chips">
+    <span>On-device AI</span><span class="dotsep">·</span><span>No account</span><span class="dotsep">·</span><span>No tracking</span><span class="dotsep">·</span><span>Free forever</span>
+  </div>
+</body></html>

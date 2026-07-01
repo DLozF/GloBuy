@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" />
+<link rel="stylesheet" href="screenshots.css" />
+<!--
+  REUSABLE FRAME for real screen captures.
+  1. Capture your extension translating a real site (any size; ~1100px+ wide looks best).
+  2. Save it as store-assets/src/capture.png
+  3. Set USE_CAPTURE below to true (uncomment the .shot rule), edit the headline/url text.
+  4. Re-render:  cd store-assets && node render.mjs frame
+  The dashed placeholder you see now is replaced by your capture.
+-->
+<style>
+  .browser { width: 1120px; }
+  .stage { margin-top: 34px; }
+  .shot {
+    height: 470px; background: #f3f4f6; position: relative;
+    /* To use your real capture, uncomment the next line: */
+    /* background: #fff url("capture.png") center top / cover no-repeat; */
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drop {
+    border: 2px dashed #c7ccd6; border-radius: 12px; width: 80%; height: 78%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #8a90a0; text-align: center; gap: 8px;
+  }
+  .drop b { font-size: 18px; font-weight: 700; color: #5a6072; }
+  .drop span { font-size: 13.5px; max-width: 360px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <span class="eyebrow">Your eyebrow</span>
+    <h1>Your headline — <em>edit this text.</em></h1>
+    <div class="sub">Your supporting line goes here. Keep it short and benefit-led.</div>
+  </div>
+  <div class="stage">
+    <div class="browser">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url"><span class="lock"></span>your-site.com</span></div>
+      <div class="shot">
+        <div class="drop">
+          <b>Drop your capture here</b>
+          <span>Save it as <code>store-assets/src/capture.png</code>, uncomment the <code>.shot</code> background rule in this file, then re-render.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body></html>

@@ -25,13 +25,6 @@ Persists your settings (target language/currency, per-site enable state, glossar
 and size toggles) via `chrome.storage.sync`, and caches fetched currency rates
 (12-hour TTL) via `chrome.storage.local` so prices aren't re-fetched constantly.
 
-## `tabs`
-
-The popup reads the **active tab's URL** to show the current host and to
-remember your per-site on/off choice, and it sends messages to / reloads the
-active tab when you change settings. This is the minimum needed to drive the
-content script for the page you're looking at.
-
 ## Network access
 
 The background service worker fetches exchange rates from public, keyless APIs
@@ -41,6 +34,10 @@ are sent — never prices, page content, or identifiers. See
 
 ## Permissions we intentionally do NOT request
 
+- **`tabs`** — unnecessary. The popup uses `chrome.tabs.query`, `sendMessage`,
+  and `reload`, none of which require the `tabs` permission; reading the active
+  tab's URL is already granted by the `<all_urls>` host permission. Requesting
+  `tabs` would only add a redundant "Read your browsing history" install warning.
 - **`activeTab`** — redundant. Broad `host_permissions` already covers the active
   tab, so the temporary, gesture-scoped access `activeTab` grants adds nothing.
 - **`scripting`** — unused. Content scripts are declared **statically** in
