@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "GloBuy — Full-Page Translator & Currency Converter",
+  "name": "GloBuy: Page Translator & Currency Converter",
   "description": "Fully translates foreign luxury/resale sites and converts prices inline to your currency.",
   "version": "1.0.0",
   "minimum_chrome_version": "138",

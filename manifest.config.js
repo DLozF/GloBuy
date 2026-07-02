@@ -2,7 +2,8 @@ import { defineManifest } from '@crxjs/vite-plugin';
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'GloBuy — Full-Page Translator & Currency Converter',
+  // Chrome Web Store caps the extension name at 45 characters.
+  name: 'GloBuy: Page Translator & Currency Converter',
   description:
     'Fully translates foreign luxury/resale sites and converts prices inline to your currency.',
   version: '1.0.0',
